@@ -1,0 +1,45 @@
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./portal:/srv/portal:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - qrscout
+      - rhr-mfg
+
+  qrscout:
+    image: ghcr.io/frc2713/qrscout:latest
+    restart: unless-stopped
+    volumes:
+      # Your team's scouting config, served at https://scout.<domain>/team-config.json.
+      # Load it once in the QRScout UI; it persists on each device.
+      - ./config/qrscout/config.json:/usr/share/nginx/html/team-config.json:ro
+
+  rhr-mfg:
+    image: ghcr.io/frc2713/rhr-mfg:latest
+    restart: unless-stopped
+    environment:
+      ONSHAPE_CLIENT_ID: ${ONSHAPE_CLIENT_ID:-}
+      ONSHAPE_CLIENT_SECRET: ${ONSHAPE_CLIENT_SECRET:-}
+      ONSHAPE_REDIRECT_URI: ${ONSHAPE_REDIRECT_URI:-}
+      ONSHAPE_SCOPE: ${ONSHAPE_SCOPE:-}
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
+
+  # Postgres joins the stack when the project tracker lands (PLAN.md Phase 2).
+  # Nothing in Phase 1 needs a database: QRScout is static and rhr-mfg uses
+  # Supabase + the Onshape API.
+
+volumes:
+  caddy_data:
+  caddy_config:

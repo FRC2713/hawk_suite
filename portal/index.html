@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hawk Suite</title>
+  <style>
+    :root { color-scheme: light dark; }
+    * { box-sizing: border-box; margin: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: light-dark(#faf9f7, #1a1a1a);
+      color: light-dark(#222, #eee);
+    }
+    main { padding: 2rem; max-width: 44rem; width: 100%; }
+    h1 { font-size: 1.6rem; margin-bottom: 0.25rem; }
+    h1 span { color: #f03d41; }
+    p.tag { color: light-dark(#666, #aaa); margin-bottom: 2rem; }
+    .apps { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); }
+    a.app {
+      display: block;
+      padding: 1.25rem 1.5rem;
+      border: 1px solid light-dark(#ddd, #3a3a3a);
+      border-radius: 12px;
+      text-decoration: none;
+      color: inherit;
+      background: light-dark(#fff, #242424);
+    }
+    a.app:hover { border-color: #f03d41; }
+    a.app h2 { font-size: 1.1rem; margin-bottom: 0.3rem; }
+    a.app p { font-size: 0.9rem; color: light-dark(#666, #aaa); }
+    footer { margin-top: 2.5rem; font-size: 0.8rem; color: light-dark(#999, #777); }
+    footer a { color: inherit; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1><span>Hawk</span> Suite</h1>
+    <p class="tag">Team apps, self-hosted.</p>
+    <div class="apps">
+      <a class="app" id="scout" href="#">
+        <h2>QRScout</h2>
+        <p>QR-code match scouting</p>
+      </a>
+      <a class="app" id="mfg" href="#">
+        <h2>Manufacturing</h2>
+        <p>Parts and production tracking via Onshape</p>
+      </a>
+    </div>
+    <footer>
+      Built by <a href="https://github.com/FRC2713">FRC 2713 Red Hawk Robotics</a>
+    </footer>
+  </main>
+  <script>
+    const host = window.location.host;
+    const proto = window.location.protocol;
+    document.getElementById('scout').href = `${proto}//scout.${host}`;
+    document.getElementById('mfg').href = `${proto}//mfg.${host}`;
+  </script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+# With a real DOMAIN, Caddy provisions Let's Encrypt certificates
+# automatically. With DOMAIN=localhost (the default, and the pit/offline
+# mode), Caddy issues its own local certificates for localhost and
+# *.localhost — no internet required.
+
+{$DOMAIN} {
+	root * /srv/portal
+	file_server
+}
+
+scout.{$DOMAIN} {
+	reverse_proxy qrscout:80
+}
+
+mfg.{$DOMAIN} {
+	reverse_proxy rhr-mfg:3000
+}
