@@ -56,6 +56,40 @@ Three A records, all to the Linode's public IPv4:
 A wildcard `*.<domain>` instead of the two subdomain records works too. Add
 AAAA records for the IPv6 address if you want it reachable over v6.
 
+### Before the real domain is ready
+
+A throwaway hostname is enough to stand the stack up, and worth doing — it
+exercises Caddy, certificate issuance, the GHCR pulls, and both containers
+before any credential is at stake.
+
+Use [DuckDNS](https://duckdns.org): claim a name, point it at the host's IP,
+and set `DOMAIN=<name>.duckdns.org`. Confirm arbitrary subdomains resolve
+before relying on it:
+
+```bash
+dig +short shop.<name>.duckdns.org
+```
+
+**Not `nip.io` or `sslip.io`.** They resolve fine, but neither is on the
+[Public Suffix List](https://publicsuffix.org/list/), so Let's Encrypt counts
+every certificate under `nip.io` against one shared rate limit for the entire
+internet. Issuance fails unpredictably and the error looks nothing like the
+cause. `duckdns.org` is on the list, so each name gets its own quota.
+
+Take hawk-shop all the way through an Onshape login on the temporary hostname
+— its redirect URI is one field to change later. **Create the Slack app once,
+against the final domain, and don't enroll adults until then.** hawk-mod will
+run and answer `/health` regardless; what you are deferring is the ~15 minutes
+of Slack dashboard edits (events URL re-verification, OAuth redirect, slash
+command, interactivity) that a hostname change costs. Enrolled adults' tokens
+survive a move — they are keyed to the Slack user, not the URL — but there is
+no reason to do the work twice.
+
+While iterating, point Caddy at Let's Encrypt's staging CA so failed attempts
+don't consume the real quota — add `acme_ca https://acme-staging-v02.api.letsencrypt.org/directory`
+to a global options block in the `Caddyfile`, and remove it before going live.
+Staging certificates are untrusted, so browsers will warn; that is expected.
+
 Wait for propagation before the next step — Caddy asks Let's Encrypt for
 certificates on first boot, and a failed challenge means a retry backoff:
 
@@ -125,8 +159,15 @@ on their own account. `/hawkmod status` shows coverage.
 
 ## Firewall
 
+**Check Linode's Cloud Firewall first.** A Linode created with the *Default*
+firewall policy permits inbound SSH only, which silently breaks Let's Encrypt:
+the HTTP-01 challenge never reaches Caddy, and the failure looks like a DNS
+problem. Open 80 and 443 on the firewall attached to the instance (Linode
+dashboard → the firewall → Rules), or detach it. Host-level `ufw` is a separate
+layer and will not help.
+
 `cloud-init.yaml` already sets `ufw` to inbound 22/80/443 only. If you skipped
-it, do the same by hand — or use Linode's Cloud Firewall in the dashboard:
+it, do the same by hand:
 
 ```bash
 sudo ufw allow OpenSSH && sudo ufw allow 80,443/tcp && sudo ufw enable
