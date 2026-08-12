@@ -4,53 +4,95 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-hawk_suite is the **orchestration layer** that bundles the FRC 2713 (Red Hawk Robotics) web apps for one-command self-hosting. It contains **no application code** — only a Docker Compose stack, reverse-proxy config, env templates, and shell tooling. Each app lives in its own repo (`FRC2713/QRScout`, `FRC2713/rhr-mfg`) and publishes a container image to `ghcr.io/frc2713/<app>`; this repo composes those images into a suite.
+hawk_suite is the **orchestration layer** that packages two FRC 2713 (Red Hawk
+Robotics) apps for self-hosting on a single Linode. It contains **no
+application code** — only a Docker Compose stack, reverse-proxy config, env
+templates, cloud-init user-data, and shell tooling.
 
-Implication: bugs in an app's *behavior* usually belong in the app's repo, not here. This repo owns routing, wiring, env plumbing, and the setup/update experience.
+The two apps live in their own repos and publish container images to GHCR:
+
+| App | Repo | Image | Purpose |
+| --- | --- | --- | --- |
+| hawk-shop | `FRC2713/hawk-shop` | `ghcr.io/frc2713/hawk-shop` | Onshape-driven manufacturing kanban |
+| hawk-mod | `FRC2713/hawk-mod` | `ghcr.io/frc2713/hawk-mod` | Youth-protection DM monitoring for Slack |
+
+Implication: bugs in an app's *behavior* belong in that app's repo, not here.
+This repo owns routing, wiring, env plumbing, and the deploy/update experience.
+
+Scope is deliberately these two apps. QRScout and rhr-mfg were removed — see
+PLAN.md's non-goals before adding anything back.
 
 ## Commands
 
 ```sh
-./setup.sh          # First-run: prompts for domain + keys, writes .env, runs `docker compose up -d`.
-                    # Refuses to run if .env already exists (edit .env directly instead).
-./update.sh         # docker compose pull && up -d && image prune -f
-docker compose up -d
-docker compose logs -f <service>   # services: caddy, qrscout, rhr-mfg
-docker compose config              # validate compose + Caddyfile env interpolation
+./setup.sh          # First run: prompts for domain + credentials, generates hawk-mod's
+                    # secrets, writes .env (600), optional ghcr login, brings the stack up.
+                    # Refuses to run if .env exists (edit .env directly instead).
+./update.sh         # docker compose pull && up -d && image prune -f && ps
+docker compose logs -f <service>   # services: caddy, hawk-shop, hawk-mod
+docker compose config              # validate compose + .env interpolation
 ```
 
-There is no build, lint, or test suite — this repo ships config, not compiled code. To validate a change, run the stack and hit the URLs.
+No build, lint, or test suite — this repo ships config, not compiled code. To
+validate a change: `docker compose config`, then run the stack and hit the URLs.
 
 ## Architecture
 
 One Docker host runs everything (`docker-compose.yml`):
 
-- **caddy** (`caddy:2-alpine`) — the only container with public ports (80/443). Reverse-proxies by subdomain and serves the static portal. Automatic HTTPS: real Let's Encrypt certs for a public `DOMAIN`, self-signed local certs when `DOMAIN=localhost`.
-- **qrscout** — static site; the team's `config/qrscout/config.json` is bind-mounted to `/usr/share/nginx/html/team-config.json` and served at `https://scout.<domain>/team-config.json`.
-- **rhr-mfg** — Node/React-Router server on port 3000; talks to the Onshape API and Supabase outbound. Configured entirely via env vars (`ONSHAPE_*`, `SUPABASE_*`).
+- **caddy** (`caddy:2-alpine`) — the only container with published ports
+  (80/443). Serves the static portal at the root domain and reverse-proxies by
+  subdomain. Automatic Let's Encrypt certificates.
+- **hawk-shop** — Node/TanStack Start server on 3000. SQLite + uploaded images
+  under `/data` (volume `hawk_shop_data`). Onshape OAuth outbound. Health at
+  `/api/health`.
+- **hawk-mod** — Node server on 3000. SQLite under `/data` (volume
+  `hawk_mod_data`). Slack events + OAuth **inbound from Slack's servers**.
+  Health at `/health`.
 
-Routing lives in `Caddyfile`: root domain → portal, `scout.` → qrscout:80, `mfg.` → rhr-mfg:3000. `$DOMAIN` is interpolated from the environment at container start.
+Routing lives in `Caddyfile`: root → portal, `shop.` → hawk-shop:3000, `mod.` →
+hawk-mod:3000. `$DOMAIN` is interpolated at container start.
 
-**No Postgres in the current stack** (Phase 1). The commented-out block in `docker-compose.yml` explains why: QRScout is static and rhr-mfg uses Supabase. A shared Postgres arrives in Phase 2 with the project tracker.
+Neither app has a separate database server. Both apply their own migrations on
+boot, which is why `update.sh` is a single step.
 
-### Two deployment modes, one config
+### DOMAIN is the single switch
 
-`DOMAIN` is the single switch. A real domain gives public HTTPS via subdomains (needs `A` records for `DOMAIN` and `*.DOMAIN`). `DOMAIN=localhost` (the default) is **pit/offline mode** — FRC competition venues have no internet, so the whole suite must run self-contained at `https://localhost` / `https://scout.localhost` with Caddy-issued local certs. Any change must keep both modes working.
+Every URL both apps need is derived from `DOMAIN` via nested compose
+interpolation (`${APP_URL:-https://shop.${DOMAIN}}`), with per-variable
+overrides in `.env` for when a registered OAuth URL disagrees. `setup.sh` also
+writes the derived values explicitly so an operator can see and edit them.
 
-## Invariants (keep the stack Kubernetes-migratable — see PLAN.md)
+**hawk-mod requires a real public domain.** Slack delivers events and the OAuth
+redirect from its own servers over HTTPS, so `mod.<domain>` must be publicly
+resolvable with a real certificate. `DOMAIN=localhost` still brings the stack up
+under Caddy's local certificates — useful for hawk-shop — but hawk-mod cannot
+work that way. Don't reintroduce offline/pit mode as a supported path.
 
-These are cheap now and are the entire migration checklist later, so don't break them:
+## Invariants
 
-1. All config via environment variables or mounted files — **never bake team-specific config into images**. Team A must be able to adopt the suite without rebuilding anything.
-2. Containers are stateless; state lives in Postgres or a mounted volume.
-3. Database access through a single `DATABASE_URL` (when a DB is added).
-4. Every app exposes `/health`.
+1. All config via environment variables or mounted files — **never bake
+   team-specific config into images**.
+2. Containers are stateless; state lives in a named volume.
+3. Every app exposes a health endpoint and its image declares a `HEALTHCHECK`.
+4. `depends_on` stays start-order only, never `condition: service_healthy` —
+   one app missing a credential must not keep Caddy and the other app down.
 
-## Status & roadmap
+## Sensitive data
 
-`PLAN.md` is the source of truth for phases and open decisions. Currently **Phase 1**: the compose stack is scaffolded but `docker compose pull` has nothing to pull until the app-side image-publish PRs merge (`FRC2713/QRScout#124`, `FRC2713/rhr-mfg#22`). Consult PLAN.md before adding services (project tracker, hawk-shop, backup sidecar) or making architectural changes — several choices are still open decisions there.
+`hawk_mod_data` holds parental-consent records and, at `LOG_MODE=full`, the
+message text of students' DMs. `TOKEN_ENCRYPTION_KEY` in `.env` encrypts adults'
+Slack tokens at rest and is **not recoverable**. Treat both accordingly:
+`.env` is mode 600, backups use SQLite's backup API (not `cp` — WAL), and the
+data-handling section of `docs/deploy-linode.md` is not boilerplate.
 
 ## Conventions
 
-- `.env` is gitignored and generated by `setup.sh`; `.env.example` documents every knob and must stay in sync with the variables `setup.sh` writes and `docker-compose.yml` reads.
-- Adding an app = add the service to `docker-compose.yml`, a subdomain block to `Caddyfile`, its env vars to both `.env.example` and `setup.sh`, and a link on the `portal/` page.
+- `.env` is gitignored and generated by `setup.sh`; `.env.example` documents
+  every knob and must stay in sync with what `setup.sh` writes and
+  `docker-compose.yml` reads.
+- Adding an app = service in `docker-compose.yml`, subdomain block in
+  `Caddyfile`, env vars in both `.env.example` and `setup.sh`, a card in
+  `portal/index.html`, and a row in the tables here and in README.md.
+- `PLAN.md` holds scope, non-goals, remaining work, and open decisions. Consult
+  it before adding services or changing the architecture.

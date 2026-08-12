@@ -1,3 +1,5 @@
+name: hawk-suite
+
 services:
   caddy:
     image: caddy:2-alpine
@@ -7,39 +9,90 @@ services:
       - "443:443"
       - "443:443/udp"
     environment:
-      DOMAIN: ${DOMAIN:-localhost}
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env — see .env.example}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./portal:/srv/portal:ro
       - caddy_data:/data
       - caddy_config:/config
+    # Start order only, deliberately not `condition: service_healthy`: an app
+    # missing a credential should not keep the proxy (and the other app) down.
     depends_on:
-      - qrscout
-      - rhr-mfg
+      - hawk-shop
+      - hawk-mod
 
-  qrscout:
-    image: ghcr.io/frc2713/qrscout:latest
-    restart: unless-stopped
-    volumes:
-      # Your team's scouting config, served at https://scout.<domain>/team-config.json.
-      # Load it once in the QRScout UI; it persists on each device.
-      - ./config/qrscout/config.json:/usr/share/nginx/html/team-config.json:ro
-
-  rhr-mfg:
-    image: ghcr.io/frc2713/rhr-mfg:latest
+  hawk-shop:
+    image: ghcr.io/frc2713/hawk-shop:${HAWK_SHOP_TAG:-latest}
     restart: unless-stopped
     environment:
+      # --- Onshape OAuth (required) ---------------------------------------
       ONSHAPE_CLIENT_ID: ${ONSHAPE_CLIENT_ID:-}
       ONSHAPE_CLIENT_SECRET: ${ONSHAPE_CLIENT_SECRET:-}
-      ONSHAPE_REDIRECT_URI: ${ONSHAPE_REDIRECT_URI:-}
-      ONSHAPE_SCOPE: ${ONSHAPE_SCOPE:-}
-      SUPABASE_URL: ${SUPABASE_URL:-}
-      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
+      # Must match the redirect URL registered on the Onshape app exactly.
+      ONSHAPE_REDIRECT_URI: ${ONSHAPE_REDIRECT_URI:-https://shop.${DOMAIN}/auth/onshape/callback}
+      ONSHAPE_SCOPE: ${ONSHAPE_SCOPE:-OAuth2Read OAuth2ReadPII OAuth2Write}
 
-  # Postgres joins the stack when the project tracker lands (PLAN.md Phase 2).
-  # Nothing in Phase 1 needs a database: QRScout is static and rhr-mfg uses
-  # Supabase + the Onshape API.
+      # --- Deployment ------------------------------------------------------
+      # Public origin, used to decide whether auth cookies get the Secure flag.
+      APP_URL: ${APP_URL:-https://shop.${DOMAIN}}
+      # true only when embedding in Onshape's iframe over HTTPS — it switches
+      # the auth cookies to SameSite=None.
+      ONSHAPE_IFRAME_EMBED: ${ONSHAPE_IFRAME_EMBED:-false}
+
+      # --- Storage ---------------------------------------------------------
+      # SQLite database + uploaded images, both under here.
+      DATA_DIR: /data
+    volumes:
+      - hawk_shop_data:/data
+    # The image carries its own HEALTHCHECK against /api/health.
+
+  hawk-mod:
+    image: ghcr.io/frc2713/hawk-mod:${HAWK_MOD_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      # --- Slack app credentials (required) --------------------------------
+      SLACK_SIGNING_SECRET: ${SLACK_SIGNING_SECRET:-}
+      SLACK_CLIENT_ID: ${SLACK_CLIENT_ID:-}
+      SLACK_CLIENT_SECRET: ${SLACK_CLIENT_SECRET:-}
+      SLACK_STATE_SECRET: ${SLACK_STATE_SECRET:-}
+
+      # --- Deployment ------------------------------------------------------
+      # Slack posts events here from its own servers, so this has to be the
+      # real public HTTPS hostname and match the app manifest exactly.
+      PUBLIC_URL: ${PUBLIC_URL:-https://mod.${DOMAIN}}
+      PORT: 3000
+      # Private findings channel — the C… ID, not the name.
+      ALERT_CHANNEL_ID: ${ALERT_CHANNEL_ID:-}
+
+      # --- Storage ---------------------------------------------------------
+      DATA_DIR: /data
+      # Encrypts adult Slack tokens at rest. Not recoverable: losing it means
+      # every adult re-authorizes, leaking it means the volume alone can read
+      # their DMs.
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:-}
+      # full = store message text of monitored DMs; metadata = who/when only.
+      LOG_MODE: ${LOG_MODE:-full}
+
+      # --- Roles -----------------------------------------------------------
+      # Slack user groups that declare who is a student and who is an adult.
+      # Unset means the roster is maintained by CSV import instead.
+      STUDENT_USERGROUP: ${STUDENT_USERGROUP:-}
+      ADULT_USERGROUP: ${ADULT_USERGROUP:-}
+
+      # --- Schedules -------------------------------------------------------
+      TZ: ${TZ:-America/New_York}
+      SWEEP_CRON: ${SWEEP_CRON:-0 3 * * *}
+      BACKFILL_CRON: ${BACKFILL_CRON:-15 * * * *}
+      DIGEST_CRON: ${DIGEST_CRON:-0 8 * * *}
+      QUARTERLY_CRON: ${QUARTERLY_CRON:-0 9 1 1,4,7,10 *}
+    volumes:
+      # Parental-consent records and, at LOG_MODE=full, minors' message text.
+      # Back it up; read the data-handling notes in docs/deploy-linode.md.
+      - hawk_mod_data:/data
+    # The image carries its own HEALTHCHECK against /health.
 
 volumes:
   caddy_data:
   caddy_config:
+  hawk_shop_data:
+  hawk_mod_data:

@@ -1,0 +1,74 @@
+#cloud-config
+# Linode user-data for a hawk_suite host. Paste into the User Data field under
+# Advanced Options when creating the Linode (Ubuntu 24.04 LTS, x86 plan).
+#
+# It installs Docker, creates a non-root `hawk` user, and clones this repo to
+# /opt/hawk_suite. It deliberately does NOT run ./setup.sh — that needs
+# credentials typed in by a human, and DNS pointed at the machine first.
+#
+# When it finishes, SSH in and run:
+#     cd /opt/hawk_suite && ./setup.sh
+# See docs/deploy-linode.md.
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - ca-certificates
+  - curl
+  - git
+  - openssl
+  - ufw
+
+users:
+  # Keeps the distro default user, which is where Linode injects the SSH keys
+  # you selected when creating the instance. Dropping it can lock you out.
+  - default
+  - name: hawk
+    # `docker` is deliberately absent: the group does not exist until runcmd
+    # installs Docker, and cloud-init creates users before that. runcmd adds
+    # hawk to it afterwards.
+    groups: [sudo]
+    shell: /bin/bash
+    sudo: ["ALL=(ALL) NOPASSWD:ALL"]
+    # Paste your public key here to SSH straight in as `hawk`. Left empty,
+    # this user has no key — reach it with `ssh root@<ip>` then `su - hawk`.
+    ssh_authorized_keys: []
+
+write_files:
+  - path: /etc/ssh/sshd_config.d/99-hawk.conf
+    content: |
+      PasswordAuthentication no
+      PermitRootLogin prohibit-password
+
+runcmd:
+  # Docker Engine from Docker's own apt repository — Ubuntu's docker.io package
+  # lags, and the compose v2 plugin ships here.
+  - install -m 0755 -d /etc/apt/keyrings
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+  - chmod a+r /etc/apt/keyrings/docker.asc
+  - >
+    echo "deb [arch=$(dpkg --print-architecture)
+    signed-by=/etc/apt/keyrings/docker.asc]
+    https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable"
+    > /etc/apt/sources.list.d/docker.list
+  - apt-get update
+  - apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  - systemctl enable --now docker
+  - usermod -aG docker hawk
+
+  # Only Caddy binds to the host; the apps are reachable through it.
+  - ufw allow OpenSSH
+  - ufw allow 80/tcp
+  - ufw allow 443/tcp
+  - ufw --force enable
+
+  - git clone https://github.com/FRC2713/hawk_suite.git /opt/hawk_suite
+  - chown -R hawk:hawk /opt/hawk_suite
+
+  - systemctl restart ssh
+
+final_message: |
+  hawk_suite host ready. Point DNS at this machine, then:
+    ssh hawk@<this-ip>
+    cd /opt/hawk_suite && ./setup.sh
