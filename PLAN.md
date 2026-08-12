@@ -16,7 +16,11 @@ image; hawk_suite composes them.
 - Every team-specific value (domain, API keys, secrets) is injected via `.env`,
   never baked into an image.
 - Upgrades are `./update.sh` — pull, restart, done, with migrations applied by
-  the apps themselves on boot.
+  the apps themselves on boot — or a reviewed GitHub Actions run that does the
+  same thing, so shipping does not require SSH access.
+- Students and mentors can develop the apps without being handed the server.
+  Contribution happens in the app repos, where merging produces an image;
+  merge rights on this repo, which is effectively root on the host, stay narrow.
 - Both apps' state lives in named volumes with a documented backup procedure.
   hawk-mod's volume holds minors' data, so this is not a nice-to-have.
 
@@ -62,6 +66,11 @@ One Linode, one compose stack:
   through Caddy.
 - **State** is two named Docker volumes. Containers are disposable; the volumes
   are not.
+- **Deployment** is a GitHub Actions job that SSHes in as a restricted `deploy`
+  user whose key can only run `/usr/local/bin/hawk-deploy`, gated behind a
+  `production` environment reviewer. See `docs/continuous-deployment.md` — in
+  particular its trust model, which is the thing to read before granting anyone
+  merge rights here.
 
 `DOMAIN` is the single switch: every URL either app needs is derived from it
 (`https://shop.$DOMAIN`, `https://mod.$DOMAIN`), with per-variable overrides in
@@ -86,6 +95,11 @@ Both apps publish images and this repo composes them. Remaining work:
 - [ ] Confirm GHCR package visibility — the packages currently reject
       anonymous pulls, so either make them public or the host needs a
       `read:packages` token at `docker login` time.
+- [ ] Wire up the deploy workflow's host side (deploy user, forced-command key,
+      GitHub secrets, `production` environment) — `docs/continuous-deployment.md`
+      is the checklist. Nothing works until the Linode exists.
+- [ ] Turn on branch protection here and on both app repos before opening
+      contribution up. The workflow's safety rests on it.
 - [ ] Automate the hawk-mod backup rather than leaving it a documented manual
       command. A nightly `docker compose exec` from cron on the host is
       probably enough; a sidecar is probably too much.

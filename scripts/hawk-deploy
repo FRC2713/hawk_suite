@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# Host-side deploy, run by the Deploy workflow over SSH.
+#
+# This is installed to /usr/local/bin/hawk-deploy — deliberately OUTSIDE the
+# git checkout, and root-owned. The deploy key's forced command points at this
+# path, so a leaked key can only run this, not get a shell.
+#
+# Installing it is a one-time manual step precisely because it lives outside
+# the checkout: updating it requires host access, which is the trust boundary
+# this whole arrangement rests on. See docs/continuous-deployment.md.
+set -euo pipefail
+
+STACK_DIR=${STACK_DIR:-/opt/hawk_suite}
+cd "$STACK_DIR"
+
+echo "== fetching $STACK_DIR"
+git fetch --quiet origin main
+# .env is untracked, so a hard reset leaves it alone.
+git reset --hard --quiet origin/main
+git --no-pager log --oneline -1
+
+echo "== pulling images"
+docker compose pull --quiet
+
+echo "== restarting"
+docker compose up -d --remove-orphans
+docker image prune -f >/dev/null
+
+echo "== waiting for health"
+# Compose has no "wait until healthy" that works on an already-running stack,
+# so poll. Both images declare a HEALTHCHECK; anything without one reports as
+# empty and is treated as up.
+deadline=$((SECONDS + 120))
+while :; do
+  unhealthy=$(docker compose ps --format '{{.Service}} {{.Health}}' \
+              | awk '$2 != "" && $2 != "healthy" {print $1}' || true)
+  [[ -z $unhealthy ]] && break
+  if ((SECONDS >= deadline)); then
+    echo "still not healthy after 120s: $unhealthy" >&2
+    docker compose ps
+    # Word splitting is the point: $unhealthy is a list of service names.
+    # shellcheck disable=SC2086
+    docker compose logs --tail=40 $unhealthy >&2
+    exit 1
+  fi
+  sleep 5
+done
+
+docker compose ps
+echo "== deployed"

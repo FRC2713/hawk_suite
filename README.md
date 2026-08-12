@@ -46,6 +46,8 @@ click around hawk-shop, but hawk-mod cannot function that way.
 
 ## Updating
 
+On the host:
+
 ```sh
 ./update.sh
 ```
@@ -54,6 +56,22 @@ Pulls current images, restarts what changed, prunes old layers. Both apps apply
 their migrations on boot, so that is the whole procedure. Pin `HAWK_SHOP_TAG`
 and `HAWK_MOD_TAG` in `.env` to released versions before competition season if
 you would rather not track each repo's `main`.
+
+Or from GitHub: Actions → **Deploy**, which does the same thing over SSH behind
+an approval gate. [docs/continuous-deployment.md](docs/continuous-deployment.md)
+sets that up.
+
+## Contributing
+
+Most work belongs in the app repos — [hawk-shop](https://github.com/FRC2713/hawk-shop)
+and [hawk-mod](https://github.com/FRC2713/hawk-mod) — where each has its own
+compose file for running that app on a laptop. You do not need access to the
+server to write code, and merging there produces a container image rather than
+touching the host.
+
+This repo is different: merging here means the server runs it. Merge rights
+are narrow on purpose. See the trust model in
+[docs/continuous-deployment.md](docs/continuous-deployment.md).
 
 ## What's where
 
@@ -65,7 +83,9 @@ setup.sh               interactive first run → .env → docker compose up
 update.sh              pull, restart, prune
 cloud-init.yaml        Linode user-data: Docker, a `hawk` user, this repo
 portal/                static landing page served at the root domain
-docs/deploy-linode.md  the deployment walkthrough
+scripts/hawk-deploy    host-side deploy, run by the Deploy workflow over SSH
+docs/                  deploy-linode.md, continuous-deployment.md
+.github/workflows/     ci.yml validates PRs; deploy.yml ships main
 ```
 
 Both images come from each app repo's `docker.yml` workflow, which publishes to

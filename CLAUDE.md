@@ -31,10 +31,15 @@ PLAN.md's non-goals before adding anything back.
 ./update.sh         # docker compose pull && up -d && image prune -f && ps
 docker compose logs -f <service>   # services: caddy, hawk-shop, hawk-mod
 docker compose config              # validate compose + .env interpolation
+shellcheck setup.sh update.sh scripts/hawk-deploy
 ```
 
-No build, lint, or test suite — this repo ships config, not compiled code. To
-validate a change: `docker compose config`, then run the stack and hit the URLs.
+No build or unit tests — this repo ships config, not compiled code. CI
+(`.github/workflows/ci.yml`) is the test suite: shellcheck, `docker compose
+config` against a fixture `.env` with assertions on the derived URLs, the
+blank-`DOMAIN` guard, cloud-init YAML validity, and a check that every variable
+`setup.sh` writes appears in `.env.example`. Run those locally before pushing;
+they are all a few seconds.
 
 ## Architecture
 
@@ -77,6 +82,23 @@ work that way. Don't reintroduce offline/pit mode as a supported path.
 3. Every app exposes a health endpoint and its image declares a `HEALTHCHECK`.
 4. `depends_on` stays start-order only, never `condition: service_healthy` —
    one app missing a credential must not keep Caddy and the other app down.
+
+## Deployment and the trust boundary
+
+`.github/workflows/deploy.yml` SSHes to the host as a restricted `deploy` user
+whose key carries a forced command pointing at `/usr/local/bin/hawk-deploy` —
+installed from `scripts/hawk-deploy`, root-owned, **outside** the git checkout
+so the deploy user cannot rewrite it. The `production` GitHub Environment gates
+every run behind a reviewer.
+
+Understand what that does and does not protect. Deployment applies whatever
+`main` says, and `docker-compose.yml` can mount any host path — so **merging to
+`main` here is code execution on the machine holding hawk-mod's data**. The key
+restrictions limit a leaked CI secret, not a merge. Branch protection and narrow
+merge rights on this repo are the actual control; app-repo merges only produce
+images, which is why student and mentor contribution belongs there. Don't
+weaken this arrangement (e.g. by moving `hawk-deploy` into the checkout, or
+dropping the environment gate) without saying so explicitly.
 
 ## Sensitive data
 
