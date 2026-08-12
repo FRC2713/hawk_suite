@@ -1,0 +1,49 @@
+name: Deploy
+
+# Deployment is deliberately not automatic on merge. It runs when someone asks
+# for it, and the `production` environment gates it behind a reviewer — see
+# docs/continuous-deployment.md for why that gate is the real control.
+#
+# To deploy automatically whenever main moves, uncomment the `push` trigger.
+# The environment's required reviewers still apply.
+on:
+  workflow_dispatch:
+  # push:
+  #   branches: [main]
+
+  # Lets the app repos ask for a deploy after they publish a new image:
+  #   gh api repos/FRC2713/hawk_suite/dispatches -f event_type=deploy
+  repository_dispatch:
+    types: [deploy]
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      # Plain ssh rather than a third-party action: this key reaches the host
+      # holding hawk-mod's data, and a marketplace action is one more thing
+      # that could be compromised in the supply chain.
+      - name: Deploy over SSH
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          # Pinned, not StrictHostKeyChecking=no — otherwise anything that can
+          # answer on port 22 gets handed the deploy key.
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          # The key carries a forced command on the host; whatever is passed
+          # here is ignored, so `true` documents that this is a trigger.
+          ssh -i ~/.ssh/id_ed25519 \
+              -o IdentitiesOnly=yes \
+              -o StrictHostKeyChecking=yes \
+              "${DEPLOY_USER}@${DEPLOY_HOST}" true

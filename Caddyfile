@@ -1,17 +1,17 @@
-# With a real DOMAIN, Caddy provisions Let's Encrypt certificates
-# automatically. With DOMAIN=localhost (the default, and the pit/offline
-# mode), Caddy issues its own local certificates for localhost and
-# *.localhost — no internet required.
+# Caddy provisions Let's Encrypt certificates automatically for a real DOMAIN.
+# With DOMAIN=localhost it issues its own local certificates instead — fine for
+# poking at hawk-shop, but hawk-mod needs a publicly reachable HTTPS hostname
+# because Slack delivers events to it from Slack's own servers.
 
 {$DOMAIN} {
 	root * /srv/portal
 	file_server
 }
 
-scout.{$DOMAIN} {
-	reverse_proxy qrscout:80
+shop.{$DOMAIN} {
+	reverse_proxy hawk-shop:3000
 }
 
-mfg.{$DOMAIN} {
-	reverse_proxy rhr-mfg:3000
+mod.{$DOMAIN} {
+	reverse_proxy hawk-mod:3000
 }
