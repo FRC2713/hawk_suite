@@ -10,6 +10,13 @@ services:
       - "443:443/udp"
     environment:
       DOMAIN: ${DOMAIN:?set DOMAIN in .env — see .env.example}
+      # Caddy parses the Caddyfile once, at startup. The file is bind-mounted,
+      # so editing it does not change this container's spec and `up -d` has no
+      # reason to recreate it — routing changes deploy green and do nothing.
+      # hawk-deploy reloads the config explicitly, but only from the version
+      # installed on the host; bump this when changing the Caddyfile to force a
+      # recreate regardless of which hawk-deploy the host is running.
+      CADDY_CONFIG_REV: "2"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./portal:/srv/portal:ro
