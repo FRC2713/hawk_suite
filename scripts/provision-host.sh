@@ -110,23 +110,42 @@ cat <<'BANNER'
 ────────────────────────────────────────────────────────────────────────
 BANNER
 
+# `hostname -I` returns every address in no guaranteed order, so it can hand
+# back IPv6 or a private address on a dual-stack host. The source address for
+# outbound traffic is the one the world actually reaches this box on.
+PUBLIC_IP=$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{print $7; exit}')
+
 echo
 echo "DEPLOY_KNOWN_HOSTS ────────────────────────────────────────────────"
-ssh-keyscan -t ed25519 "$(hostname -I | awk '{print $1}')" 2>/dev/null
+ssh-keyscan -t ed25519,rsa "$PUBLIC_IP" 2>/dev/null | grep -v '^#'
+echo
+echo "  (if that IP looks wrong, run 'ssh-keyscan <host>' from your laptop"
+echo "   instead — host keys are public, so re-scanning is always safe)"
 
 if [[ $NEW_KEY == true ]]; then
   echo
   echo "DEPLOY_SSH_KEY ────────────────────────────────────────────────────"
-  cat "$KEY_PATH"
+  # Single-line base64 rather than PEM. A wrapped or truncated private key
+  # fails much later, as "error in libcrypto" at connect time, and nothing
+  # about that message points back at the copy-paste that caused it. One line
+  # has nothing to wrap. The deploy workflow accepts either form.
+  base64 -w0 < "$KEY_PATH"
   echo
-  echo "Copy the private key above into the DEPLOY_SSH_KEY secret, then"
-  echo "remove it from this host — GitHub is where it lives now:"
+  echo
+  echo "Copy that single line into the DEPLOY_SSH_KEY secret — all of it,"
+  echo "and nothing else. Then remove the key from this host:"
   echo "    sudo shred -u ${KEY_PATH}"
   echo "(the .pub stays; authorized_keys is what matters here)"
+  echo
+  echo "Verify it survived the trip before shredding anything:"
+  echo "    ssh-keygen -y -f ${KEY_PATH} | head -c 40"
+  echo "should print the same prefix as the key in ${AUTH}."
 else
   echo
   echo "The deploy key was not regenerated, so DEPLOY_SSH_KEY is unchanged."
-  echo "If you need it again, generate a fresh one:"
+  echo "To print it again as one line:"
+  echo "    sudo base64 -w0 ${KEY_PATH}"
+  echo "To start over with a fresh key:"
   echo "    sudo rm ${KEY_PATH}* && sudo bash $0"
   echo "and remove the old line from ${AUTH}."
 fi
