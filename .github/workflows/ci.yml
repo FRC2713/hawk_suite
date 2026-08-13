@@ -46,6 +46,12 @@ jobs:
         run: |
           python3 -c "import yaml; yaml.safe_load(open('cloud-init.yaml'))"
 
+      - name: Caddyfile is valid
+        run: |
+          docker run --rm -e DOMAIN=ci.example.org \
+            -v "$PWD/Caddyfile:/etc/caddy/Caddyfile:ro" \
+            caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+
       - name: hawk-deploy refuses a bad environment
         run: |
           T=$(mktemp -d)
