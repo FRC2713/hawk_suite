@@ -72,12 +72,48 @@ jobs:
           fi
 
           install -m 700 -d ~/.ssh
-          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+
+          # Accept the key either as PEM or as a single base64 line. A private
+          # key is multi-line, and every hand-copy through a terminal is a
+          # chance to lose a character to wrapping — which surfaces only as
+          # "error in libcrypto" at connect time. base64 -w0 makes it one line
+          # with nothing to wrap, so prefer that form when setting the secret.
+          if printf '%s' "$SSH_KEY" | grep -q 'BEGIN .*PRIVATE KEY'; then
+            printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          else
+            printf '%s' "$SSH_KEY" | tr -d '[:space:]' | base64 -d > ~/.ssh/id_ed25519 2>/dev/null \
+              || { echo "::error::DEPLOY_SSH_KEY is neither a PEM private key nor valid base64."; exit 1; }
+          fi
           chmod 600 ~/.ssh/id_ed25519
+
+          # Fail here, with a usable message, rather than as a bare
+          # "Permission denied" that looks like the key was never authorized.
+          if ! ssh-keygen -y -f ~/.ssh/id_ed25519 >/dev/null 2>&1; then
+            echo "::error::DEPLOY_SSH_KEY is corrupt — OpenSSH cannot parse it."
+            echo "::error::It is almost always truncated or re-wrapped in transit."
+            echo "::error::Re-set it as a single line from the host that holds it:"
+            echo "::error::  sudo base64 -w0 /home/deploy/.ssh/id_ed25519"
+            echo "::error::Verify before setting: ssh-keygen -y -f <file>"
+            exit 1
+          fi
           # Pinned, not StrictHostKeyChecking=no — otherwise anything that can
           # answer on port 22 gets handed the deploy key and the credentials
           # that follow it.
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+          # A malformed DEPLOY_KNOWN_HOSTS otherwise surfaces as a bare
+          # "Host key verification failed" and exit 255, which reads like the
+          # host is unreachable rather than like a bad secret. The value is
+          # hand-copied, and long base64 lines lose characters to terminal
+          # wrapping, so check it before spending an approval on it.
+          if ! grep -qF "$DEPLOY_HOST" ~/.ssh/known_hosts || ! grep -q 'ssh-' ~/.ssh/known_hosts; then
+            echo "::error::DEPLOY_KNOWN_HOSTS has no usable entry for the deploy host."
+            echo "::error::Regenerate it from a machine that can reach the server:"
+            echo "::error::  ssh-keyscan <host> | grep -v '^#'"
+            echo "::error::and paste the whole output — host keys are public, so"
+            echo "::error::there is no risk in re-scanning rather than hand-copying."
+            exit 1
+          fi
 
           # Rendered to a file mode 600 rather than piped inline so the values
           # never appear in a command line. The runner is ephemeral.
