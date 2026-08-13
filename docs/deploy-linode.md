@@ -157,6 +157,54 @@ the bot to the findings channel, and imports the roster and consents (see
 hawk-mod's README). Then every adult opens the same install URL to authorize
 on their own account. `/hawkmod status` shows coverage.
 
+## Changing the domain later
+
+Moving from a temporary hostname to the real one, in the order that avoids
+downtime. Budget fifteen minutes, nearly all of it in the Slack dashboard.
+
+**1. DNS.** Point the new `<domain>`, `shop.`, and `mod.` at the host and wait
+for them to resolve. Leave the old hostname pointing there too until the end —
+it costs nothing and keeps the stack reachable while you work.
+
+**2. `.env` on the host.** Changing `DOMAIN` is **not sufficient**. The compose
+file derives the app URLs from `DOMAIN`, but `setup.sh` writes the derived
+values explicitly, and an explicit value in `.env` wins. Update all four:
+
+```
+DOMAIN=<new-domain>
+APP_URL=https://shop.<new-domain>
+ONSHAPE_REDIRECT_URI=https://shop.<new-domain>/auth/onshape/callback
+PUBLIC_URL=https://mod.<new-domain>
+```
+
+**3. Onshape.** Update the redirect URL on the OAuth app to match
+`ONSHAPE_REDIRECT_URI` exactly.
+
+**4. Slack.** Every URL in the app that carries the hostname, from
+`docs/slack-app-manifest.yaml`:
+
+| Where | What |
+| --- | --- |
+| Event Subscriptions | Request URL — Slack re-verifies on save, so the stack must already be answering at the new hostname |
+| OAuth & Permissions | Redirect URL |
+| Slash Commands | `/hawkmod` request URL |
+| Interactivity & Shortcuts | Request URL (the Resolve/Acknowledge buttons) |
+
+Order matters here: do step 5 before saving the Event Subscriptions URL, or the
+verification challenge fails.
+
+**5. Restart.** `docker compose up -d` on the host. Caddy requests certificates
+for the new hostnames on its own; the old ones stay in its store harmlessly.
+
+**6. Verify.** `curl -s https://mod.<new-domain>/health`, then `/hawkmod status`
+in Slack — coverage should read the same N/N it did before.
+
+Adults do **not** re-authorize. Their tokens are keyed to the Slack user, not
+the URL, so enrollment survives the move. Anyone mid-enrollment at the moment
+of the cutover just reopens the install link.
+
+Once traffic is confirmed on the new hostname, drop the old DNS record.
+
 ## Firewall
 
 **Check Linode's Cloud Firewall first.** A Linode created with the *Default*
