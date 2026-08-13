@@ -9,7 +9,17 @@
 }
 
 shop.{$DOMAIN} {
-	reverse_proxy hawk-shop:3000
+	reverse_proxy hawk-shop:3000 {
+		# hawk-shop builds absolute redirects from the request rather than from
+		# APP_URL, and this proxy talks to it over plain HTTP, so it emits
+		# "Location: http://shop...". In a browser tab Caddy just bounces that
+		# back to HTTPS. Inside Onshape's HTTPS iframe it is mixed content, which
+		# Chrome blocks silently — the panel renders blank with no error.
+		#
+		# Belongs upstream (X-Forwarded-Proto is already set on the way in), but
+		# routing is this repo's job and the embedded view is unusable without it.
+		header_down Location "^http://" "https://"
+	}
 }
 
 mod.{$DOMAIN} {
