@@ -13,7 +13,7 @@ jobs:
 
       - name: Shell scripts parse and lint clean
         run: |
-          shellcheck setup.sh update.sh scripts/hawk-deploy
+          shellcheck setup.sh update.sh scripts/hawk-deploy scripts/provision-host.sh
 
       - name: Compose file resolves with a filled-in environment
         run: |
@@ -45,6 +45,23 @@ jobs:
       - name: cloud-init.yaml is valid YAML
         run: |
           python3 -c "import yaml; yaml.safe_load(open('cloud-init.yaml'))"
+
+      - name: hawk-deploy refuses a bad environment
+        run: |
+          T=$(mktemp -d)
+          run() { STACK_DIR="$T" bash scripts/hawk-deploy 2>&1 || true; }
+
+          # A blank or missing credential must never reach .env — the stack
+          # would come up crash-looping and read as an unrelated outage.
+          printf 'DOMAIN=x.org\n' | run | grep -q 'no TOKEN_ENCRYPTION_KEY'
+          printf 'TOKEN_ENCRYPTION_KEY=k\n' | run | grep -q 'no DOMAIN'
+
+          # Changing TOKEN_ENCRYPTION_KEY forces every adult to re-authorize
+          # and orphans stored tokens. It must never happen via a deploy.
+          printf 'DOMAIN=x.org\nTOKEN_ENCRYPTION_KEY=ORIGINAL\n' > "$T/.env"
+          printf 'DOMAIN=x.org\nTOKEN_ENCRYPTION_KEY=CHANGED\n' | run \
+            | grep -q 'differs from the one on this host'
+          grep -q 'TOKEN_ENCRYPTION_KEY=ORIGINAL' "$T/.env"
 
       - name: Every variable setup.sh writes is documented in .env.example
         run: |

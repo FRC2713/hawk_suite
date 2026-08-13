@@ -85,11 +85,20 @@ work that way. Don't reintroduce offline/pit mode as a supported path.
 
 ## Deployment and the trust boundary
 
-`.github/workflows/deploy.yml` SSHes to the host as a restricted `deploy` user
-whose key carries a forced command pointing at `/usr/local/bin/hawk-deploy` —
-installed from `scripts/hawk-deploy`, root-owned, **outside** the git checkout
-so the deploy user cannot rewrite it. The `production` GitHub Environment gates
-every run behind a reviewer.
+**Nobody SSHes into the host.** `scripts/provision-host.sh` is a one-time root
+bootstrap; after it, every deploy is `.github/workflows/deploy.yml`. The
+workflow renders `.env` from GitHub Secrets and variables and pipes it over the
+SSH session — the deploy key's forced command ignores arguments, so stdin is
+the only channel. On the far end `scripts/hawk-deploy` (installed to
+`/usr/local/bin`, root-owned, **outside** the checkout so the deploy user
+cannot rewrite what its own key runs) validates that environment, writes
+`.env` at 600, and deploys. The `production` GitHub Environment gates every run
+behind a reviewer.
+
+`hawk-deploy` refuses a deploy whose incoming `TOKEN_ENCRYPTION_KEY` differs
+from the host's, and leaves `.env` untouched — writing `.env` every deploy
+means a wrong secret would otherwise silently orphan every enrolled adult's
+token. CI tests that refusal; don't relax it.
 
 Understand what that does and does not protect. Deployment applies whatever
 `main` says, and `docker-compose.yml` can mount any host path — so **merging to

@@ -8,11 +8,71 @@
 # Installing it is a one-time manual step precisely because it lives outside
 # the checkout: updating it requires host access, which is the trust boundary
 # this whole arrangement rests on. See docs/continuous-deployment.md.
+#
+# It reads an optional .env on stdin. That is how the workflow ships
+# credentials from GitHub Secrets without anyone SSHing in: the forced command
+# ignores arguments, so stdin is the only channel, and it stays inside the
+# encrypted session. Piping nothing keeps the existing .env.
 set -euo pipefail
 
 STACK_DIR=${STACK_DIR:-/opt/hawk_suite}
 cd "$STACK_DIR"
 
+# ── .env from stdin ───────────────────────────────────────────────────
+# `timeout` so a human running `ssh deploy@host` without redirecting stdin
+# gets a deploy after 10s rather than an unexplained hang. Falling back to a
+# plain read matters: swallowing the incoming environment because a coreutils
+# binary is missing would deploy a stale .env and say nothing.
+if command -v timeout >/dev/null 2>&1; then
+  incoming=$(timeout 10 cat || true)
+else
+  incoming=$(cat || true)
+fi
+
+if [[ -n ${incoming//[[:space:]]/} ]]; then
+  echo "== received an environment on stdin"
+
+  value_of() { # value_of <var> <text>
+    printf '%s\n' "$2" | sed -n "s/^$1=//p" | head -1
+  }
+
+  # Refusing beats writing a broken .env: compose would start the stack with
+  # blank credentials and both apps would crash-loop, which reads as an
+  # unrelated outage.
+  for required in DOMAIN TOKEN_ENCRYPTION_KEY; do
+    if [[ -z $(value_of "$required" "$incoming") ]]; then
+      echo "refusing: incoming environment has no $required" >&2
+      echo "the existing .env was left untouched; fix the GitHub secret" >&2
+      exit 1
+    fi
+  done
+
+  # TOKEN_ENCRYPTION_KEY is not recoverable and not rotatable in place —
+  # changing it makes every stored adult token undecryptable and forces the
+  # whole team to re-authorize. A deploy is never the right place for that to
+  # happen by accident, so it has to be done deliberately on the host.
+  if [[ -f .env ]]; then
+    old_key=$(sed -n 's/^TOKEN_ENCRYPTION_KEY=//p' .env | head -1)
+    new_key=$(value_of TOKEN_ENCRYPTION_KEY "$incoming")
+    if [[ -n $old_key && $old_key != "$new_key" ]]; then
+      echo "refusing: TOKEN_ENCRYPTION_KEY differs from the one on this host" >&2
+      echo "every enrolled adult would have to re-authorize, and previously" >&2
+      echo "stored tokens would be unreadable. If this is intended, change it" >&2
+      echo "on the host by hand. Otherwise fix the GitHub secret to match." >&2
+      exit 1
+    fi
+    cp -p .env .env.bak
+  fi
+
+  umask 077
+  printf '%s\n' "$incoming" > .env
+  chmod 600 .env
+else
+  echo "== nothing on stdin, keeping the existing .env"
+  [[ -f .env ]] || { echo "no .env on this host and none supplied" >&2; exit 1; }
+fi
+
+# ── the deploy ────────────────────────────────────────────────────────
 echo "== fetching $STACK_DIR"
 git fetch --quiet origin main
 # .env is untracked, so a hard reset leaves it alone.
