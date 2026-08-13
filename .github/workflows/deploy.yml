@@ -1,11 +1,14 @@
 name: Deploy
 
+# The whole deployment. Nobody SSHes into the host: this renders .env from
+# GitHub Secrets, ships it over the SSH session, and the forced command on the
+# other end applies it. See docs/continuous-deployment.md.
+#
 # Deployment is deliberately not automatic on merge. It runs when someone asks
-# for it, and the `production` environment gates it behind a reviewer — see
-# docs/continuous-deployment.md for why that gate is the real control.
+# for it, and the `production` environment gates it behind a reviewer — that
+# gate is the real control, for the reasons in the doc.
 #
 # To deploy automatically whenever main moves, uncomment the `push` trigger.
-# The environment's required reviewers still apply.
 on:
   workflow_dispatch:
   # push:
@@ -25,25 +28,90 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
-      # Plain ssh rather than a third-party action: this key reaches the host
+      # Plain ssh rather than a third-party action: this reaches the host
       # holding hawk-mod's data, and a marketplace action is one more thing
       # that could be compromised in the supply chain.
-      - name: Deploy over SSH
+      - name: Deploy
         env:
           SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+
+          # Non-secret settings live as repository variables so they are
+          # readable and diffable; only credentials are secrets.
+          DOMAIN: ${{ vars.DOMAIN }}
+          HAWK_SHOP_TAG: ${{ vars.HAWK_SHOP_TAG || 'latest' }}
+          HAWK_MOD_TAG: ${{ vars.HAWK_MOD_TAG || 'latest' }}
+          LOG_MODE: ${{ vars.LOG_MODE || 'full' }}
+          TZ: ${{ vars.TZ || 'America/New_York' }}
+          STUDENT_USERGROUP: ${{ vars.STUDENT_USERGROUP }}
+          ADULT_USERGROUP: ${{ vars.ADULT_USERGROUP }}
+          ONSHAPE_IFRAME_EMBED: ${{ vars.ONSHAPE_IFRAME_EMBED || 'false' }}
+
+          ONSHAPE_CLIENT_ID: ${{ secrets.ONSHAPE_CLIENT_ID }}
+          ONSHAPE_CLIENT_SECRET: ${{ secrets.ONSHAPE_CLIENT_SECRET }}
+          SLACK_SIGNING_SECRET: ${{ secrets.SLACK_SIGNING_SECRET }}
+          SLACK_CLIENT_ID: ${{ secrets.SLACK_CLIENT_ID }}
+          SLACK_CLIENT_SECRET: ${{ secrets.SLACK_CLIENT_SECRET }}
+          SLACK_STATE_SECRET: ${{ secrets.SLACK_STATE_SECRET }}
+          ALERT_CHANNEL_ID: ${{ secrets.ALERT_CHANNEL_ID }}
+          TOKEN_ENCRYPTION_KEY: ${{ secrets.TOKEN_ENCRYPTION_KEY }}
         run: |
+          set -euo pipefail
+
+          if [ -z "${DOMAIN}" ]; then
+            echo "::error::The DOMAIN repository variable is not set."
+            exit 1
+          fi
+          if [ -z "${TOKEN_ENCRYPTION_KEY}" ]; then
+            echo "::error::TOKEN_ENCRYPTION_KEY is not set. Generate it ONCE with"
+            echo "::error::'openssl rand -base64 32' and store it as a secret — it is"
+            echo "::error::not recoverable, and changing it forces every adult to re-authorize."
+            exit 1
+          fi
+
           install -m 700 -d ~/.ssh
           printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           # Pinned, not StrictHostKeyChecking=no — otherwise anything that can
-          # answer on port 22 gets handed the deploy key.
+          # answer on port 22 gets handed the deploy key and the credentials
+          # that follow it.
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
-          # The key carries a forced command on the host; whatever is passed
-          # here is ignored, so `true` documents that this is a trigger.
+
+          # Rendered to a file mode 600 rather than piped inline so the values
+          # never appear in a command line. The runner is ephemeral.
+          umask 077
+          {
+            echo "# Rendered by the Deploy workflow. Edits here are overwritten."
+            echo "DOMAIN=${DOMAIN}"
+            echo "HAWK_SHOP_TAG=${HAWK_SHOP_TAG}"
+            echo "HAWK_MOD_TAG=${HAWK_MOD_TAG}"
+            echo ""
+            echo "ONSHAPE_CLIENT_ID=${ONSHAPE_CLIENT_ID}"
+            echo "ONSHAPE_CLIENT_SECRET=${ONSHAPE_CLIENT_SECRET}"
+            echo "ONSHAPE_REDIRECT_URI=https://shop.${DOMAIN}/auth/onshape/callback"
+            echo "ONSHAPE_SCOPE=OAuth2Read OAuth2ReadPII OAuth2Write"
+            echo "APP_URL=https://shop.${DOMAIN}"
+            echo "ONSHAPE_IFRAME_EMBED=${ONSHAPE_IFRAME_EMBED}"
+            echo ""
+            echo "SLACK_SIGNING_SECRET=${SLACK_SIGNING_SECRET}"
+            echo "SLACK_CLIENT_ID=${SLACK_CLIENT_ID}"
+            echo "SLACK_CLIENT_SECRET=${SLACK_CLIENT_SECRET}"
+            echo "SLACK_STATE_SECRET=${SLACK_STATE_SECRET}"
+            echo "PUBLIC_URL=https://mod.${DOMAIN}"
+            echo "ALERT_CHANNEL_ID=${ALERT_CHANNEL_ID}"
+            echo "TOKEN_ENCRYPTION_KEY=${TOKEN_ENCRYPTION_KEY}"
+            echo "LOG_MODE=${LOG_MODE}"
+            echo "STUDENT_USERGROUP=${STUDENT_USERGROUP}"
+            echo "ADULT_USERGROUP=${ADULT_USERGROUP}"
+            echo "TZ=${TZ}"
+          } > /tmp/rendered.env
+
+          # The forced command ignores arguments, so stdin is the channel.
           ssh -i ~/.ssh/id_ed25519 \
               -o IdentitiesOnly=yes \
               -o StrictHostKeyChecking=yes \
-              "${DEPLOY_USER}@${DEPLOY_HOST}" true
+              "${DEPLOY_USER}@${DEPLOY_HOST}" < /tmp/rendered.env
+
+          shred -u /tmp/rendered.env

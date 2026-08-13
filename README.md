@@ -17,19 +17,26 @@ that routes a subdomain to each, environment templates, and setup tooling.
 
 ## Deploying
 
-[**docs/deploy-linode.md**](docs/deploy-linode.md) is the full walkthrough:
-Linode sizing, DNS, the credentials to collect first, and the post-install
-steps in each app. The short version, on any Ubuntu host with Docker:
+Deploys run from GitHub Actions; nobody SSHes into the server to ship. The
+host needs one bootstrap, run once by whoever owns it:
 
 ```sh
-git clone https://github.com/FRC2713/hawk_suite.git
-cd hawk_suite
-./setup.sh
+curl -fsSL https://raw.githubusercontent.com/FRC2713/hawk_suite/main/scripts/provision-host.sh | sudo bash
 ```
 
-`setup.sh` asks for the domain and each app's credentials, generates hawk-mod's
-two secrets, writes `.env`, and starts the stack. Caddy provisions Let's
-Encrypt certificates on first boot.
+That installs Docker, a restricted `deploy` user, and a key that can only
+trigger a deploy — then prints the two values to paste into GitHub Secrets.
+Everything after it is Actions → **Deploy**, behind a required reviewer.
+[**docs/continuous-deployment.md**](docs/continuous-deployment.md) has the full
+list of secrets and variables, and the trust model behind that gate.
+
+[**docs/deploy-linode.md**](docs/deploy-linode.md) covers the rest: Linode
+sizing, DNS, temporary domains, the credentials to collect first, and the
+post-install steps in each app.
+
+For a one-off or offline install with no GitHub involved, `./setup.sh` still
+does the interactive version — it asks for the domain and each app's
+credentials, generates hawk-mod's secrets, writes `.env`, and starts the stack.
 
 DNS: point A records for `<domain>`, `shop.<domain>`, and `mod.<domain>` at the
 host (or `<domain>` plus a wildcard `*.<domain>`).
@@ -83,6 +90,7 @@ setup.sh               interactive first run → .env → docker compose up
 update.sh              pull, restart, prune
 cloud-init.yaml        Linode user-data: Docker, a `hawk` user, this repo
 portal/                static landing page served at the root domain
+scripts/provision-host.sh  one-time host bootstrap, run by the server's owner
 scripts/hawk-deploy    host-side deploy, run by the Deploy workflow over SSH
 docs/                  deploy-linode.md, continuous-deployment.md
 .github/workflows/     ci.yml validates PRs; deploy.yml ships main
