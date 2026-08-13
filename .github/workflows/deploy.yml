@@ -187,6 +187,21 @@ jobs:
           check "https://shop.${DOMAIN}"       "hawk-shop" || rc=1
           check "https://mod.${DOMAIN}/health" "hawk-mod"  || rc=1
 
+          # A plain-http redirect is invisible in a browser tab, because Caddy
+          # bounces it back to HTTPS. Inside Onshape's HTTPS iframe it is mixed
+          # content and Chrome blocks it silently — a blank panel, no error
+          # anywhere. The tab-level checks above cannot see this at all.
+          redirect=$(curl -sS -o /dev/null -w '%{redirect_url}' --max-time 15 \
+                     "https://shop.${DOMAIN}/onshape_connector?elementType=PARTSTUDIO" || true)
+          case "$redirect" in
+            http://*)
+              echo "::error::hawk-shop redirects to plain HTTP: ${redirect%%\?*}"
+              echo "::error::The Onshape iframe will render blank. Caddy should be"
+              echo "::error::rewriting this — check that the config reloaded."
+              rc=1 ;;
+            *) echo "  ok   redirects stay on https" ;;
+          esac
+
           if ((rc)); then
             echo "::notice::Containers may be running fine — this checks TLS and routing."
             echo "::notice::Usual causes: the Linode Cloud Firewall blocking 80 (Caddy"
