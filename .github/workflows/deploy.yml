@@ -115,3 +115,47 @@ jobs:
               "${DEPLOY_USER}@${DEPLOY_HOST}" < /tmp/rendered.env
 
           shred -u /tmp/rendered.env
+
+      # The stack reporting healthy is not the same as the suite working.
+      # caddy:2-alpine declares no HEALTHCHECK, so the poll on the host treats
+      # it as up no matter what — a certificate that never issues looks exactly
+      # like a clean deploy from in there. Check from outside instead.
+      - name: Verify HTTPS
+        env:
+          DOMAIN: ${{ vars.DOMAIN }}
+        run: |
+          set -uo pipefail
+
+          # First issuance is three ACME round trips and can take a minute or
+          # two; a fixed sleep would be either flaky or wasteful.
+          check() { # check <url> <what>
+            local url=$1 what=$2 deadline=$((SECONDS + 180)) code=000
+            while ((SECONDS < deadline)); do
+              # curl already writes 000 via -w when it cannot connect; the ||
+              # replaces it rather than appending, so the message stays legible.
+              code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 "$url") || code=000
+              # 2xx and 3xx both count: hawk-shop redirects to Onshape when
+              # nobody is signed in, which is a working app.
+              if [[ $code =~ ^[23] ]]; then
+                echo "  ok   $what ($code)"
+                return 0
+              fi
+              sleep 10
+            done
+            echo "::error::$what did not serve HTTPS within 180s (last: $code)"
+            return 1
+          }
+
+          rc=0
+          check "https://${DOMAIN}"            "portal"    || rc=1
+          check "https://shop.${DOMAIN}"       "hawk-shop" || rc=1
+          check "https://mod.${DOMAIN}/health" "hawk-mod"  || rc=1
+
+          if ((rc)); then
+            echo "::notice::Containers may be running fine — this checks TLS and routing."
+            echo "::notice::Usual causes: the Linode Cloud Firewall blocking 80 (Caddy"
+            echo "::notice::needs it for the HTTP-01 challenge), DNS not pointing at the"
+            echo "::notice::host, or Let's Encrypt rate limits. 'docker compose logs caddy'"
+            echo "::notice::names which."
+          fi
+          exit $rc
