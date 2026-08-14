@@ -1,8 +1,9 @@
 # hawk_suite — Plan
 
-hawk_suite packages [hawk-shop](https://github.com/FRC2713/hawk-shop) and
-[hawk-mod](https://github.com/FRC2713/hawk-mod) into one Docker Compose stack,
-deploys it to a single Linode, and puts both apps behind real HTTPS on
+hawk_suite packages [hawk-shop](https://github.com/FRC2713/hawk-shop),
+[hawk-mod](https://github.com/FRC2713/hawk-mod), and
+[hawk-bot](https://github.com/FRC2713/hawk-bot) into one Docker Compose stack,
+deploys it to a single Linode, and puts every app behind real HTTPS on
 subdomains of one domain.
 
 That is the whole scope. This repo contains no app code — it is the thin
@@ -12,7 +13,7 @@ image; hawk_suite composes them.
 
 ## Goals
 
-- One command on a fresh Linode gets both apps running with automatic HTTPS.
+- One command on a fresh Linode gets every app running with automatic HTTPS.
 - Every team-specific value (domain, API keys, secrets) is injected via `.env`,
   never baked into an image.
 - Upgrades are `./update.sh` — pull, restart, done, with migrations applied by
@@ -28,7 +29,10 @@ image; hawk_suite composes them.
 
 - **Other apps.** QRScout and rhr-mfg were in an earlier version of this repo
   and were removed. QRScout is a static site with no server-side state and no
-  reason to live in this stack; rhr-mfg was superseded by hawk-shop.
+  reason to live in this stack; rhr-mfg was superseded by hawk-shop. hawk-bot
+  was added deliberately, and it earns the slot the same way the others do: a
+  server-side app with state, an inbound webhook that needs a public HTTPS
+  hostname, and no home other than this host.
 - **Offline / pit mode.** It was a goal when QRScout was in scope. hawk-mod
   requires public HTTPS reachability by construction, so the suite is now a
   public-internet deployment. `DOMAIN=localhost` still works for poking at
@@ -49,32 +53,39 @@ image; hawk_suite composes them.
 | --- | --- | --- | --- | --- |
 | [hawk-shop](https://github.com/FRC2713/hawk-shop) | `ghcr.io/frc2713/hawk-shop` | 3000 | SQLite + uploaded images in `/data` | Onshape OAuth + API |
 | [hawk-mod](https://github.com/FRC2713/hawk-mod) | `ghcr.io/frc2713/hawk-mod` | 3000 | SQLite in `/data` | Slack (events, OAuth) |
+| [hawk-bot](https://github.com/FRC2713/hawk-bot) | `ghcr.io/frc2713/hawk-bot` | 3000 | SQLite in `/data` | Slack (commands, events, OAuth) |
 
-Both publish `linux/amd64` images from a `docker.yml` workflow on every push to
-`main`, carry their own `HEALTHCHECK`, run as a non-root user, and apply
-migrations on boot.
+All three publish `linux/amd64` images from a `docker.yml` workflow on every
+push to `main`, carry their own `HEALTHCHECK`, run as a non-root user, and
+apply migrations on boot.
+
+hawk-mod and hawk-bot are separate Slack apps sharing one workspace. hawk-bot
+requests no user scopes and holds no per-person tokens: everything it does, it
+does as itself, in public. Keeping that line is what lets a bot with real
+capabilities live next to a youth-protection tool without inheriting its
+review burden.
 
 ## Architecture
 
 One Linode, one compose stack:
 
 - **Caddy** is the only container binding host ports (80/443). It serves the
-  static portal at the root domain and reverse-proxies `shop.` and `mod.` to
-  the two app containers by service name. Let's Encrypt certificates are
+  static portal at the root domain and reverse-proxies `shop.`, `mod.`, and
+  `bot.` to the app containers by service name. Let's Encrypt certificates are
   automatic.
-- **hawk-shop** and **hawk-mod** publish no ports and are reachable only
-  through Caddy.
-- **State** is two named Docker volumes. Containers are disposable; the volumes
-  are not.
+- **The apps** publish no ports and are reachable only through Caddy.
+- **State** is three named Docker volumes. Containers are disposable; the
+  volumes are not.
 - **Deployment** is a GitHub Actions job that SSHes in as a restricted `deploy`
   user whose key can only run `/usr/local/bin/hawk-deploy`, gated behind a
   `production` environment reviewer. See `docs/continuous-deployment.md` — in
   particular its trust model, which is the thing to read before granting anyone
   merge rights here.
 
-`DOMAIN` is the single switch: every URL either app needs is derived from it
-(`https://shop.$DOMAIN`, `https://mod.$DOMAIN`), with per-variable overrides in
-`.env` for the cases where a registered OAuth URL disagrees.
+`DOMAIN` is the single switch: every URL any app needs is derived from it
+(`https://shop.$DOMAIN`, `https://mod.$DOMAIN`, `https://bot.$DOMAIN`), with
+per-variable overrides in `.env` for the cases where a registered OAuth URL
+disagrees.
 
 ## Constraints worth keeping
 
@@ -87,11 +98,16 @@ One Linode, one compose stack:
 
 ## Status
 
-Both apps publish images and this repo composes them. Remaining work:
+All three apps publish images and this repo composes them. Remaining work:
 
-- [ ] Run the whole thing on a real Linode with real DNS and confirm both
-      apps' OAuth round trips complete (the redirect URIs are the likely
+- [ ] Run the whole thing on a real Linode with real DNS and confirm every
+      app's OAuth round trip completes (the redirect URIs are the likely
       failure).
+- [ ] Create hawk-bot's Slack app from its manifest and set the five
+      `HAWK_BOT_*` GitHub secrets **before the next deploy**. Like hawk-mod,
+      the container refuses to start on a blank credential, and the deploy
+      workflow fails the run when a service does not go healthy. Then an admin
+      installs it once from `https://bot.<domain>/slack/install`.
 - [ ] Confirm GHCR package visibility — the packages currently reject
       anonymous pulls, so either make them public or the host needs a
       `read:packages` token at `docker login` time.

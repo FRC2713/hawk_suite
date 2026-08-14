@@ -58,6 +58,15 @@ Settings → Secrets and variables → Actions.
 | `SLACK_STATE_SECRET` | `openssl rand -hex 32` |
 | `ALERT_CHANNEL_ID` | the private findings channel's `C…` ID |
 | `TOKEN_ENCRYPTION_KEY` | `openssl rand -base64 32` — **see below** |
+| `HAWK_BOT_SLACK_SIGNING_SECRET` | hawk-bot's **own** Slack app → Basic Information |
+| `HAWK_BOT_SLACK_CLIENT_ID` | hawk-bot's Slack app → Basic Information |
+| `HAWK_BOT_SLACK_CLIENT_SECRET` | hawk-bot's Slack app → Basic Information |
+| `HAWK_BOT_SLACK_STATE_SECRET` | `openssl rand -hex 32` |
+| `HAWK_BOT_TOKEN_ENCRYPTION_KEY` | `openssl rand -base64 32` |
+
+The `HAWK_BOT_*` secrets come from a **second Slack app**, not from hawk-mod's.
+Two apps in one workspace, and crossing their credentials makes hawk-bot answer
+as the wrong app — which presents as Slack silently ignoring `/hawk`.
 
 ### Variables
 
@@ -67,7 +76,7 @@ changes are visible:
 | Variable | Default if unset |
 | --- | --- |
 | `DOMAIN` | none — the deploy fails without it |
-| `HAWK_SHOP_TAG`, `HAWK_MOD_TAG` | `latest` |
+| `HAWK_SHOP_TAG`, `HAWK_MOD_TAG`, `HAWK_BOT_TAG` | `latest` |
 | `LOG_MODE` | `full` |
 | `TZ` | `America/New_York` |
 | `STUDENT_USERGROUP`, `ADULT_USERGROUP` | empty (roster by CSV) |
@@ -88,6 +97,13 @@ value here would do that silently — so `hawk-deploy` refuses any deploy whose
 incoming key differs from the one already on the host, and leaves `.env`
 untouched. CI tests that refusal. If you ever genuinely need to rotate it, do
 it on the host by hand and accept the re-enrollment.
+
+`HAWK_BOT_TOKEN_ENCRYPTION_KEY` is a different animal despite the similar name.
+It encrypts one workspace installation, so losing or changing it costs a single
+admin reinstall of hawk-bot. `hawk-deploy` requires it to be present — a blank
+one crash-loops the container, which reads as an unrelated outage — but
+deliberately does not compare it against the host's. CI tests that it stays
+rotatable, so the two do not get conflated later.
 
 ### The approval gate
 
@@ -116,8 +132,8 @@ Reasonable off-season; think hard before competition season.
 
 ### From the app repos
 
-A merge in `hawk-shop` or `hawk-mod` publishes an image but does not deploy it.
-To have it ask for one, add a step to that repo's `docker.yml`:
+A merge in `hawk-shop`, `hawk-mod`, or `hawk-bot` publishes an image but does
+not deploy it. To have it ask for one, add a step to that repo's `docker.yml`:
 
 ```yaml
       - name: Ask hawk_suite to deploy
@@ -146,7 +162,7 @@ That asymmetry is what makes it safe to open development up:
 
 | Repo | Who contributes | What merging gets you |
 | --- | --- | --- |
-| `hawk-shop`, `hawk-mod` | anyone — students, mentors | a container **image** |
+| `hawk-shop`, `hawk-mod`, `hawk-bot` | anyone — students, mentors | a container **image** |
 | `hawk_suite` | anyone, via PR | **code execution on the host** |
 
 Students can do essentially all the interesting work in the app repos, review
@@ -165,12 +181,12 @@ laptop development; nobody needs the server to write code.
 - **`refusing: TOKEN_ENCRYPTION_KEY differs …`** — the secret does not match
   what the host already has. Fix the secret; do not "fix" the host.
 - **`still not healthy after 120s`** — images pulled but an app won't start.
-  The run prints the last 40 log lines of the unhealthy service. hawk-mod names
-  the exact environment variables that failed validation.
+  The run prints the last 40 log lines of the unhealthy service. hawk-mod and
+  hawk-bot each name the exact environment variables that failed validation.
 - **`denied` / `unauthorized` on pull** — the GHCR packages are private and the
   host has no credential. Make them public, or `sudo -u deploy docker login
   ghcr.io` once.
 
 Rolling back is a deploy of an older state: set the `HAWK_SHOP_TAG` /
-`HAWK_MOD_TAG` variables to the previous versions and re-run, or revert the
-commit on `main` and deploy that.
+`HAWK_MOD_TAG` / `HAWK_BOT_TAG` variables to the previous versions and re-run,
+or revert the commit on `main` and deploy that.

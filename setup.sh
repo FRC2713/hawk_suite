@@ -24,20 +24,21 @@ require() { # require <var> <question>
 }
 
 command -v openssl >/dev/null 2>&1 || {
-  echo "openssl is required to generate hawk-mod's secrets. Install it and rerun."
+  echo "openssl is required to generate the Slack apps' secrets. Install it and rerun."
   exit 1
 }
 
 echo "hawk_suite setup"
 echo "================"
 echo
-echo "The suite serves three hostnames off one domain:"
+echo "The suite serves four hostnames off one domain:"
 echo "  https://<domain>       portal"
 echo "  https://shop.<domain>  hawk-shop"
 echo "  https://mod.<domain>   hawk-mod"
+echo "  https://bot.<domain>   hawk-bot"
 echo
-echo "hawk-mod only works on a real, publicly resolvable domain — Slack posts"
-echo "events to it from Slack's servers over HTTPS."
+echo "hawk-mod and hawk-bot only work on a real, publicly resolvable domain —"
+echo "Slack posts to them from Slack's servers over HTTPS."
 require DOMAIN "Domain (e.g. team2713.org)"
 
 echo
@@ -60,11 +61,25 @@ prompt SLACK_CLIENT_ID "Slack client ID" ""
 prompt SLACK_CLIENT_SECRET "Slack client secret" ""
 prompt ALERT_CHANNEL_ID "Findings channel ID (C…, private, screened adults only)" ""
 prompt LOG_MODE "Log mode (full = store DM text, metadata = who/when only)" "full"
-prompt TZ "Timezone" "America/New_York"
+
+echo
+echo "── hawk-bot ─────────────────────────────────────────────────────"
+echo "Needs a SECOND Slack app — its own, not hawk-mod's — created from"
+echo "hawk-bot's docs/slack-app-manifest.yaml, with every URL in it pointed"
+echo "at https://bot.${DOMAIN}."
+echo "Leave blank to fill in .env later."
+prompt HAWK_BOT_SLACK_SIGNING_SECRET "Hawk Bot signing secret" ""
+prompt HAWK_BOT_SLACK_CLIENT_ID "Hawk Bot client ID" ""
+prompt HAWK_BOT_SLACK_CLIENT_SECRET "Hawk Bot client secret" ""
+
+echo
+prompt TZ "Timezone (both Slack apps)" "America/New_York"
 
 # Generated, never prompted — there is no reason for a human to pick these.
 SLACK_STATE_SECRET=$(openssl rand -hex 32)
 TOKEN_ENCRYPTION_KEY=$(openssl rand -base64 32)
+HAWK_BOT_SLACK_STATE_SECRET=$(openssl rand -hex 32)
+HAWK_BOT_TOKEN_ENCRYPTION_KEY=$(openssl rand -base64 32)
 
 umask 077
 cat > .env <<EOF
@@ -72,6 +87,7 @@ cat > .env <<EOF
 DOMAIN=${DOMAIN}
 HAWK_SHOP_TAG=latest
 HAWK_MOD_TAG=latest
+HAWK_BOT_TAG=latest
 
 # ── hawk-shop ────────────────────────────────────────────────────────
 ONSHAPE_CLIENT_ID=${ONSHAPE_CLIENT_ID}
@@ -93,6 +109,14 @@ LOG_MODE=${LOG_MODE}
 STUDENT_USERGROUP=
 ADULT_USERGROUP=
 TZ=${TZ}
+
+# ── hawk-bot ─────────────────────────────────────────────────────────
+HAWK_BOT_SLACK_SIGNING_SECRET=${HAWK_BOT_SLACK_SIGNING_SECRET}
+HAWK_BOT_SLACK_CLIENT_ID=${HAWK_BOT_SLACK_CLIENT_ID}
+HAWK_BOT_SLACK_CLIENT_SECRET=${HAWK_BOT_SLACK_CLIENT_SECRET}
+HAWK_BOT_SLACK_STATE_SECRET=${HAWK_BOT_SLACK_STATE_SECRET}
+HAWK_BOT_PUBLIC_URL=https://bot.${DOMAIN}
+HAWK_BOT_TOKEN_ENCRYPTION_KEY=${HAWK_BOT_TOKEN_ENCRYPTION_KEY}
 EOF
 chmod 600 .env
 
@@ -102,6 +126,8 @@ echo
 echo "!! Back up TOKEN_ENCRYPTION_KEY from .env, somewhere off this host."
 echo "!! It is not recoverable. Without it every adult must re-authorize"
 echo "!! hawk-mod and previously stored tokens are unreadable."
+echo "   (HAWK_BOT_TOKEN_ENCRYPTION_KEY is worth copying too, but losing it"
+echo "    costs only one reinstall of hawk-bot by a workspace admin.)"
 
 if ! command -v docker >/dev/null 2>&1; then
   echo
@@ -136,6 +162,9 @@ echo "Up. Give Caddy a minute to get certificates, then:"
 echo "  Portal:    https://${DOMAIN}"
 echo "  hawk-shop: https://shop.${DOMAIN}"
 echo "  hawk-mod:  https://mod.${DOMAIN}/health"
+echo "  hawk-bot:  https://bot.${DOMAIN}/health"
 echo
 echo "Next: a Lead Coach opens https://mod.${DOMAIN}/slack/install to install"
-echo "the Slack app, then every adult opens the same URL to authorize."
+echo "hawk-mod's Slack app, then every adult opens the same URL to authorize."
+echo "A workspace admin opens https://bot.${DOMAIN}/slack/install once to"
+echo "install hawk-bot; nobody else has to do anything."

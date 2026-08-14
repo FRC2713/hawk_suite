@@ -27,12 +27,31 @@ jobs:
           SLACK_STATE_SECRET=ci
           ALERT_CHANNEL_ID=C0000000000
           TOKEN_ENCRYPTION_KEY=ci
+          HAWK_BOT_SLACK_SIGNING_SECRET=ci-bot
+          HAWK_BOT_SLACK_CLIENT_ID=ci-bot
+          HAWK_BOT_SLACK_CLIENT_SECRET=ci-bot
+          HAWK_BOT_SLACK_STATE_SECRET=ci-bot
+          HAWK_BOT_TOKEN_ENCRYPTION_KEY=ci-bot
           EOF
           docker compose config > /tmp/resolved.yml
           # The derived URLs are the thing most likely to break silently.
           grep -q 'APP_URL: https://shop.ci.example.org' /tmp/resolved.yml
           grep -q 'PUBLIC_URL: https://mod.ci.example.org' /tmp/resolved.yml
+          grep -q 'PUBLIC_URL: https://bot.ci.example.org' /tmp/resolved.yml
           grep -q 'ONSHAPE_REDIRECT_URI: https://shop.ci.example.org/auth/onshape/callback' /tmp/resolved.yml
+
+          # Two Slack apps now share one .env, and crossing them is a subtle
+          # failure: hawk-bot would come up holding hawk-mod's credentials and
+          # answer as the wrong app, which looks like a Slack problem.
+          docker compose config --format json | python3 -c '
+          import json, sys
+          env = {k: v.get("environment", {}) for k, v in json.load(sys.stdin)["services"].items()}
+          mod, bot = env["hawk-mod"], env["hawk-bot"]
+          assert mod["SLACK_SIGNING_SECRET"] == "ci", mod["SLACK_SIGNING_SECRET"]
+          assert bot["SLACK_SIGNING_SECRET"] == "ci-bot", bot["SLACK_SIGNING_SECRET"]
+          assert mod["TOKEN_ENCRYPTION_KEY"] == "ci", mod["TOKEN_ENCRYPTION_KEY"]
+          assert bot["TOKEN_ENCRYPTION_KEY"] == "ci-bot", bot["TOKEN_ENCRYPTION_KEY"]
+          '
 
       - name: A blank DOMAIN is refused
         run: |
@@ -61,13 +80,26 @@ jobs:
           # would come up crash-looping and read as an unrelated outage.
           printf 'DOMAIN=x.org\n' | run | grep -q 'no TOKEN_ENCRYPTION_KEY'
           printf 'TOKEN_ENCRYPTION_KEY=k\n' | run | grep -q 'no DOMAIN'
+          printf 'DOMAIN=x.org\nTOKEN_ENCRYPTION_KEY=k\n' | run \
+            | grep -q 'no HAWK_BOT_TOKEN_ENCRYPTION_KEY'
 
           # Changing TOKEN_ENCRYPTION_KEY forces every adult to re-authorize
           # and orphans stored tokens. It must never happen via a deploy.
-          printf 'DOMAIN=x.org\nTOKEN_ENCRYPTION_KEY=ORIGINAL\n' > "$T/.env"
-          printf 'DOMAIN=x.org\nTOKEN_ENCRYPTION_KEY=CHANGED\n' | run \
+          printf 'DOMAIN=x.org\nTOKEN_ENCRYPTION_KEY=ORIGINAL\nHAWK_BOT_TOKEN_ENCRYPTION_KEY=b\n' > "$T/.env"
+          printf 'DOMAIN=x.org\nTOKEN_ENCRYPTION_KEY=CHANGED\nHAWK_BOT_TOKEN_ENCRYPTION_KEY=b\n' | run \
             | grep -q 'differs from the one on this host'
           grep -q 'TOKEN_ENCRYPTION_KEY=ORIGINAL' "$T/.env"
+
+          # hawk-bot's key is deliberately NOT compared — rotating it costs one
+          # reinstall, and refusing a deploy over that would be the wrong
+          # trade. If this ever starts refusing, the two keys got conflated.
+          printf 'DOMAIN=x.org\nTOKEN_ENCRYPTION_KEY=SAME\nHAWK_BOT_TOKEN_ENCRYPTION_KEY=ORIGINAL\n' > "$T/.env"
+          out=$(printf 'DOMAIN=x.org\nTOKEN_ENCRYPTION_KEY=SAME\nHAWK_BOT_TOKEN_ENCRYPTION_KEY=ROTATED\n' | run)
+          case "$out" in
+            *"differs from the one on this host"*)
+              echo "hawk-deploy refused a hawk-bot key rotation"; exit 1 ;;
+          esac
+          grep -q 'HAWK_BOT_TOKEN_ENCRYPTION_KEY=ROTATED' "$T/.env"
 
       - name: Every variable setup.sh writes is documented in .env.example
         run: |

@@ -4,32 +4,40 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-hawk_suite is the **orchestration layer** that packages two FRC 2713 (Red Hawk
+hawk_suite is the **orchestration layer** that packages three FRC 2713 (Red Hawk
 Robotics) apps for self-hosting on a single Linode. It contains **no
 application code** — only a Docker Compose stack, reverse-proxy config, env
 templates, cloud-init user-data, and shell tooling.
 
-The two apps live in their own repos and publish container images to GHCR:
+The apps live in their own repos and publish container images to GHCR:
 
 | App | Repo | Image | Purpose |
 | --- | --- | --- | --- |
 | hawk-shop | `FRC2713/hawk-shop` | `ghcr.io/frc2713/hawk-shop` | Onshape-driven manufacturing kanban |
 | hawk-mod | `FRC2713/hawk-mod` | `ghcr.io/frc2713/hawk-mod` | Youth-protection DM monitoring for Slack |
+| hawk-bot | `FRC2713/hawk-bot` | `ghcr.io/frc2713/hawk-bot` | Team assistant for Slack (`/hawk`) |
 
 Implication: bugs in an app's *behavior* belong in that app's repo, not here.
 This repo owns routing, wiring, env plumbing, and the deploy/update experience.
 
-Scope is deliberately these two apps. QRScout and rhr-mfg were removed — see
+Scope is deliberately these three apps. QRScout and rhr-mfg were removed — see
 PLAN.md's non-goals before adding anything back.
+
+hawk-mod and hawk-bot are **two separate Slack apps** in one workspace, with
+separate credentials, separate installs, and separate volumes. hawk-bot's
+variables carry a `HAWK_BOT_` prefix in `.env` and arrive unprefixed inside its
+container, because both apps read the same names. Crossing them is the
+subtlest failure this stack has: hawk-bot would answer as hawk-mod's app and
+Slack would appear to be ignoring it. CI asserts they stay distinct.
 
 ## Commands
 
 ```sh
-./setup.sh          # First run: prompts for domain + credentials, generates hawk-mod's
-                    # secrets, writes .env (600), optional ghcr login, brings the stack up.
-                    # Refuses to run if .env exists (edit .env directly instead).
+./setup.sh          # First run: prompts for domain + credentials, generates both Slack
+                    # apps' secrets, writes .env (600), optional ghcr login, brings the
+                    # stack up. Refuses to run if .env exists (edit .env directly).
 ./update.sh         # docker compose pull && up -d && image prune -f && ps
-docker compose logs -f <service>   # services: caddy, hawk-shop, hawk-mod
+docker compose logs -f <service>   # services: caddy, hawk-shop, hawk-mod, hawk-bot
 docker compose config              # validate compose + .env interpolation
 shellcheck setup.sh update.sh scripts/hawk-deploy
 ```
@@ -54,25 +62,32 @@ One Docker host runs everything (`docker-compose.yml`):
 - **hawk-mod** — Node server on 3000. SQLite under `/data` (volume
   `hawk_mod_data`). Slack events + OAuth **inbound from Slack's servers**.
   Health at `/health`.
+- **hawk-bot** — Node server on 3000. SQLite under `/data` (volume
+  `hawk_bot_data`). Slash commands + events + OAuth **inbound from Slack's
+  servers**. Health at `/health`. Holds a workspace bot token and no user
+  tokens at all, which is what keeps it uncontroversial next to hawk-mod.
 
 Routing lives in `Caddyfile`: root → portal, `shop.` → hawk-shop:3000, `mod.` →
-hawk-mod:3000. `$DOMAIN` is interpolated at container start.
+hawk-mod:3000, `bot.` → hawk-bot:3000. `$DOMAIN` is interpolated at container
+start. Editing the Caddyfile also means bumping `CADDY_CONFIG_REV` in
+`docker-compose.yml` — the comment there says why.
 
-Neither app has a separate database server. Both apply their own migrations on
+No app has a separate database server. All three apply their own migrations on
 boot, which is why `update.sh` is a single step.
 
 ### DOMAIN is the single switch
 
-Every URL both apps need is derived from `DOMAIN` via nested compose
+Every URL the apps need is derived from `DOMAIN` via nested compose
 interpolation (`${APP_URL:-https://shop.${DOMAIN}}`), with per-variable
 overrides in `.env` for when a registered OAuth URL disagrees. `setup.sh` also
 writes the derived values explicitly so an operator can see and edit them.
 
-**hawk-mod requires a real public domain.** Slack delivers events and the OAuth
-redirect from its own servers over HTTPS, so `mod.<domain>` must be publicly
-resolvable with a real certificate. `DOMAIN=localhost` still brings the stack up
-under Caddy's local certificates — useful for hawk-shop — but hawk-mod cannot
-work that way. Don't reintroduce offline/pit mode as a supported path.
+**Both Slack apps require a real public domain.** Slack delivers events, slash
+commands, and OAuth redirects from its own servers over HTTPS, so
+`mod.<domain>` and `bot.<domain>` must be publicly resolvable with real
+certificates. `DOMAIN=localhost` still brings the stack up under Caddy's local
+certificates — useful for hawk-shop — but neither Slack app can work that way.
+Don't reintroduce offline/pit mode as a supported path.
 
 ## Invariants
 
@@ -99,6 +114,11 @@ behind a reviewer.
 from the host's, and leaves `.env` untouched — writing `.env` every deploy
 means a wrong secret would otherwise silently orphan every enrolled adult's
 token. CI tests that refusal; don't relax it.
+
+`HAWK_BOT_TOKEN_ENCRYPTION_KEY` is *required* but deliberately **not**
+compared. It encrypts one workspace installation, so changing it costs a single
+admin reinstall — not worth blocking a deploy over. CI tests that it stays
+rotatable, so the two keys don't get conflated later.
 
 Understand what that does and does not protect. Deployment applies whatever
 `main` says, and `docker-compose.yml` can mount any host path — so **merging to
