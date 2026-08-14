@@ -16,7 +16,7 @@ services:
       # hawk-deploy reloads the config explicitly, but only from the version
       # installed on the host; bump this when changing the Caddyfile to force a
       # recreate regardless of which hawk-deploy the host is running.
-      CADDY_CONFIG_REV: "2"
+      CADDY_CONFIG_REV: "3"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./portal:/srv/portal:ro
@@ -27,6 +27,7 @@ services:
     depends_on:
       - hawk-shop
       - hawk-mod
+      - hawk-bot
 
   hawk-shop:
     image: ghcr.io/frc2713/hawk-shop:${HAWK_SHOP_TAG:-latest}
@@ -98,8 +99,44 @@ services:
       - hawk_mod_data:/data
     # The image carries its own HEALTHCHECK against /health.
 
+  hawk-bot:
+    image: ghcr.io/frc2713/hawk-bot:${HAWK_BOT_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      # --- Slack app credentials (required) --------------------------------
+      # A SECOND Slack app, separate from hawk-mod's. Same workspace, its own
+      # credentials and its own install. The variables are prefixed here
+      # because both apps read the unprefixed names inside their containers,
+      # and one .env holds both.
+      SLACK_SIGNING_SECRET: ${HAWK_BOT_SLACK_SIGNING_SECRET:-}
+      SLACK_CLIENT_ID: ${HAWK_BOT_SLACK_CLIENT_ID:-}
+      SLACK_CLIENT_SECRET: ${HAWK_BOT_SLACK_CLIENT_SECRET:-}
+      SLACK_STATE_SECRET: ${HAWK_BOT_SLACK_STATE_SECRET:-}
+
+      # --- Deployment ------------------------------------------------------
+      # Slack posts slash commands and events here from its own servers, so
+      # this has to be the real public HTTPS hostname and match the app
+      # manifest exactly.
+      PUBLIC_URL: ${HAWK_BOT_PUBLIC_URL:-https://bot.${DOMAIN}}
+      PORT: 3000
+
+      # --- Storage ---------------------------------------------------------
+      DATA_DIR: /data
+      # Encrypts the stored workspace installation, which carries the bot
+      # token. Unlike hawk-mod's key of the same name, losing this one costs
+      # a single reinstall by an admin — no per-person data depends on it.
+      TOKEN_ENCRYPTION_KEY: ${HAWK_BOT_TOKEN_ENCRYPTION_KEY:-}
+
+      TZ: ${TZ:-America/New_York}
+    volumes:
+      # The workspace installation and a small settings table. Recreatable by
+      # reinstalling; back it up for convenience, not for obligation.
+      - hawk_bot_data:/data
+    # The image carries its own HEALTHCHECK against /health.
+
 volumes:
   caddy_data:
   caddy_config:
   hawk_shop_data:
   hawk_mod_data:
+  hawk_bot_data:

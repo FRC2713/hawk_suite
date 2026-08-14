@@ -1,10 +1,10 @@
 # Deploying hawk_suite to Linode
 
-One Linode, one Docker Compose stack, three hostnames. About twenty minutes,
+One Linode, one Docker Compose stack, four hostnames. About twenty minutes,
 most of it waiting on DNS.
 
-Do the prerequisites first — the setup script asks for credentials from all
-three, and going back to collect them afterwards means editing `.env` by hand.
+Do the prerequisites first — the setup script asks for every app's credentials,
+and going back to collect them afterwards means editing `.env` by hand.
 
 ## Before you start
 
@@ -12,24 +12,30 @@ three, and going back to collect them afterwards means editing `.env` by hand.
 - **Onshape OAuth app** — https://dev-portal.onshape.com/oauthApps. Redirect
   URL: `https://shop.<domain>/auth/onshape/callback`. Keep the client ID and
   secret.
-- **Slack app** — created from hawk-mod's
+- **Slack app for hawk-mod** — created from hawk-mod's
   [`docs/slack-app-manifest.yaml`](https://github.com/FRC2713/hawk-mod/blob/main/docs/slack-app-manifest.yaml),
   with every URL in the manifest pointed at `https://mod.<domain>`. Keep the
   signing secret, client ID, and client secret from Basic Information.
 - **A private Slack channel** for hawk-mod's findings, and its `C…` ID.
-- **GHCR access.** The images are published to `ghcr.io/frc2713/hawk-shop` and
-  `ghcr.io/frc2713/hawk-mod` by each repo's `docker.yml` workflow. If those
-  packages are private, either make them public (GitHub → the package →
-  Package settings → Change visibility) or have a GitHub token with
-  `read:packages` ready; `setup.sh` will offer to `docker login` with it.
+- **A second Slack app for hawk-bot** — created from hawk-bot's
+  [`docs/slack-app-manifest.yaml`](https://github.com/FRC2713/hawk-bot/blob/main/docs/slack-app-manifest.yaml),
+  with every URL pointed at `https://bot.<domain>`. Same workspace, its own
+  app: two sets of credentials, and they must not be crossed. Keep its signing
+  secret, client ID, and client secret too.
+- **GHCR access.** The images are published to `ghcr.io/frc2713/hawk-shop`,
+  `ghcr.io/frc2713/hawk-mod`, and `ghcr.io/frc2713/hawk-bot` by each repo's
+  `docker.yml` workflow. If those packages are private, either make them public
+  (GitHub → the package → Package settings → Change visibility) or have a
+  GitHub token with `read:packages` ready; `setup.sh` will offer to
+  `docker login` with it.
 
 ## 1. Create the Linode
 
 **Shared CPU, 2 GB RAM (Linode 2GB, ~$12/mo), Ubuntu 24.04 LTS**, in a region
-near the team. Both apps are Node processes with SQLite databases and no
+near the team. The apps are Node processes with SQLite databases and no
 separate database server; 1 GB works but leaves nothing for the image pulls.
 
-Both images are built for `linux/amd64` only, so pick a **shared or dedicated
+Every image is built for `linux/amd64` only, so pick a **shared or dedicated
 x86 plan** — not one of the ARM offerings.
 
 Under *Advanced Options*, paste [`cloud-init.yaml`](../cloud-init.yaml) into
@@ -45,15 +51,16 @@ Add your SSH key, set a root password, and boot it.
 
 ## 2. Point DNS at it
 
-Three A records, all to the Linode's public IPv4:
+Four A records, all to the Linode's public IPv4:
 
 | Host           | Type | Value            |
 | -------------- | ---- | ---------------- |
 | `<domain>`     | A    | the Linode's IP  |
 | `shop`         | A    | the Linode's IP  |
 | `mod`          | A    | the Linode's IP  |
+| `bot`          | A    | the Linode's IP  |
 
-A wildcard `*.<domain>` instead of the two subdomain records works too. Add
+A wildcard `*.<domain>` instead of the three subdomain records works too. Add
 AAAA records for the IPv6 address if you want it reachable over v6.
 
 ### Before the real domain is ready
@@ -77,11 +84,13 @@ internet. Issuance fails unpredictably and the error looks nothing like the
 cause. `duckdns.org` is on the list, so each name gets its own quota.
 
 Take hawk-shop all the way through an Onshape login on the temporary hostname
-— its redirect URI is one field to change later. **Create the Slack app once,
-against the final domain, and don't enroll adults until then.** hawk-mod will
-run and answer `/health` regardless; what you are deferring is the ~15 minutes
-of Slack dashboard edits (events URL re-verification, OAuth redirect, slash
-command, interactivity) that a hostname change costs. Enrolled adults' tokens
+— its redirect URI is one field to change later. **Create the Slack apps once,
+against the final domain, and don't enroll adults until then.** Neither Slack
+app will start without its credentials, so a temporary-hostname run means
+leaving them blank and accepting two restarting containers; what you are
+deferring is the ~15 minutes *per app* of Slack dashboard edits (events URL
+re-verification, OAuth redirect, slash command, interactivity) that a hostname
+change costs. Enrolled adults' tokens
 survive a move — they are keyed to the Slack user, not the URL — but there is
 no reason to do the work twice.
 
@@ -97,9 +106,10 @@ certificates on first boot, and a failed challenge means a retry backoff:
 dig +short shop.<domain>
 ```
 
-**hawk-mod genuinely requires this.** Slack delivers events and the OAuth
-redirect from its own servers to `https://mod.<domain>`. A private hostname, a
-VPN-only address, or a self-signed certificate will not work.
+**Both Slack apps genuinely require this.** Slack delivers events, slash
+commands, and OAuth redirects from its own servers to `https://mod.<domain>`
+and `https://bot.<domain>`. A private hostname, a VPN-only address, or a
+self-signed certificate will not work.
 
 ## 3. Run setup
 
@@ -113,9 +123,9 @@ ssh hawk@<linode-ip>
 cd /opt/hawk_suite && ./setup.sh
 ```
 
-It asks for the domain and the credentials collected above, generates
-hawk-mod's two secrets, writes `.env` with mode 600, logs in to GHCR if needed,
-and brings the stack up.
+It asks for the domain and the credentials collected above, generates each
+Slack app's two secrets, writes `.env` with mode 600, logs in to GHCR if
+needed, and brings the stack up.
 
 **Copy `TOKEN_ENCRYPTION_KEY` out of `.env` into the team's password manager
 now.** It encrypts adults' Slack tokens at rest and cannot be recovered from
@@ -127,24 +137,26 @@ anywhere else.
 docker compose ps
 ```
 
-Both apps should report `healthy` within about 30 seconds. Then, from your
+Every app should report `healthy` within about 30 seconds. Then, from your
 laptop:
 
 ```bash
 curl -s https://mod.<domain>/health
+curl -s https://bot.<domain>/health
 ```
 
-`{"status":"ok","installed":false,"enrolledAdults":0}` is the expected state
-before the Slack app is installed — running and waiting.
+`{"status":"ok","installed":false,…}` from each is the expected state before
+the Slack apps are installed — running and waiting.
 
 If a container is restarting, it is almost always a blank credential:
 
 ```bash
 docker compose logs --tail=50 hawk-mod
+docker compose logs --tail=50 hawk-bot
 ```
 
-hawk-mod prints exactly which environment variables failed validation. Fix
-`.env` and `docker compose up -d`.
+Both print exactly which environment variables failed validation. Fix `.env`
+and `docker compose up -d`.
 
 ## 5. Finish the app setup
 
@@ -157,30 +169,37 @@ the bot to the findings channel, and imports the roster and consents (see
 hawk-mod's README). Then every adult opens the same install URL to authorize
 on their own account. `/hawkmod status` shows coverage.
 
+**hawk-bot**: a workspace admin opens `https://bot.<domain>/slack/install`
+once. That is the whole setup — nobody else authorizes anything, because
+hawk-bot asks for no user tokens. `/hawk help` in any channel confirms it, and
+`/hawk config` sets the workspace settings.
+
 ## Changing the domain later
 
 Moving from a temporary hostname to the real one, in the order that avoids
-downtime. Budget fifteen minutes, nearly all of it in the Slack dashboard.
+downtime. Budget half an hour, nearly all of it in the Slack dashboard — there
+are two Slack apps to edit, and the work is the same for each.
 
-**1. DNS.** Point the new `<domain>`, `shop.`, and `mod.` at the host and wait
-for them to resolve. Leave the old hostname pointing there too until the end —
-it costs nothing and keeps the stack reachable while you work.
+**1. DNS.** Point the new `<domain>`, `shop.`, `mod.`, and `bot.` at the host
+and wait for them to resolve. Leave the old hostname pointing there too until
+the end — it costs nothing and keeps the stack reachable while you work.
 
 **2. `.env` on the host.** Changing `DOMAIN` is **not sufficient**. The compose
 file derives the app URLs from `DOMAIN`, but `setup.sh` writes the derived
-values explicitly, and an explicit value in `.env` wins. Update all four:
+values explicitly, and an explicit value in `.env` wins. Update all five:
 
 ```
 DOMAIN=<new-domain>
 APP_URL=https://shop.<new-domain>
 ONSHAPE_REDIRECT_URI=https://shop.<new-domain>/auth/onshape/callback
 PUBLIC_URL=https://mod.<new-domain>
+HAWK_BOT_PUBLIC_URL=https://bot.<new-domain>
 ```
 
 **3. Onshape.** Update the redirect URL on the OAuth app to match
 `ONSHAPE_REDIRECT_URI` exactly.
 
-**4. Slack.** Every URL in the app that carries the hostname, from
+**4. Slack — hawk-mod's app.** Every URL that carries the hostname, from
 `docs/slack-app-manifest.yaml`:
 
 | Where | What |
@@ -190,18 +209,24 @@ PUBLIC_URL=https://mod.<new-domain>
 | Slash Commands | `/hawkmod` request URL |
 | Interactivity & Shortcuts | Request URL (the Resolve/Acknowledge buttons) |
 
-Order matters here: do step 5 before saving the Event Subscriptions URL, or the
+Order matters here: do step 6 before saving the Event Subscriptions URL, or the
 verification challenge fails.
 
-**5. Restart.** `docker compose up -d` on the host. Caddy requests certificates
+**5. Slack — hawk-bot's app.** The same four fields, pointed at
+`https://bot.<new-domain>`, with `/hawk` as the slash command. Different app,
+different dashboard; nothing is shared between them.
+
+**6. Restart.** `docker compose up -d` on the host. Caddy requests certificates
 for the new hostnames on its own; the old ones stay in its store harmlessly.
 
-**6. Verify.** `curl -s https://mod.<new-domain>/health`, then `/hawkmod status`
-in Slack — coverage should read the same N/N it did before.
+**7. Verify.** `curl -s https://mod.<new-domain>/health` and
+`curl -s https://bot.<new-domain>/health`, then `/hawkmod status` in Slack —
+coverage should read the same N/N it did before — and `/hawk status`.
 
-Adults do **not** re-authorize. Their tokens are keyed to the Slack user, not
-the URL, so enrollment survives the move. Anyone mid-enrollment at the moment
-of the cutover just reopens the install link.
+Adults do **not** re-authorize, and hawk-bot does **not** need reinstalling.
+Tokens are keyed to the Slack user and workspace, not the URL, so both survive
+the move. Anyone mid-enrollment at the moment of the cutover just reopens the
+install link.
 
 Once traffic is confirmed on the new hostname, drop the old DNS record.
 
@@ -221,7 +246,7 @@ it, do the same by hand:
 sudo ufw allow OpenSSH && sudo ufw allow 80,443/tcp && sudo ufw enable
 ```
 
-Neither app publishes a port of its own; only Caddy binds to the host.
+No app publishes a port of its own; only Caddy binds to the host.
 
 ## Updating
 
@@ -229,21 +254,26 @@ Neither app publishes a port of its own; only Caddy binds to the host.
 cd /opt/hawk_suite && ./update.sh
 ```
 
-Pulls the current images, restarts what changed, prunes the old layers. Both
-apps apply their database migrations on boot, so that is the whole procedure.
+Pulls the current images, restarts what changed, prunes the old layers. Every
+app applies its database migrations on boot, so that is the whole procedure.
 
-To pin versions instead of tracking each repo's `main`, set `HAWK_SHOP_TAG` and
-`HAWK_MOD_TAG` in `.env` to released tags. Worth doing before competition
-season, when an unexpected change mid-event is the thing you least want.
+To pin versions instead of tracking each repo's `main`, set `HAWK_SHOP_TAG`,
+`HAWK_MOD_TAG`, and `HAWK_BOT_TAG` in `.env` to released tags. Worth doing
+before competition season, when an unexpected change mid-event is the thing you
+least want.
 
 ## Backups
 
-Two volumes hold everything that matters:
+Three volumes hold everything that matters:
 
 | Volume            | Contents                                                    |
 | ----------------- | ----------------------------------------------------------- |
 | `hawk_shop_data`  | hawk-shop's SQLite database and uploaded part images        |
 | `hawk_mod_data`   | parental-consent records; at `LOG_MODE=full`, students' DM text |
+| `hawk_bot_data`   | hawk-bot's workspace install token and its settings table   |
+
+`hawk_bot_data` is the one you can afford to lose: an admin reinstalling and a
+coach re-entering a couple of settings recreates it. Back up the other two.
 
 Use SQLite's backup API rather than copying the files — a `cp` of a WAL
 database mid-write produces a corrupt copy:

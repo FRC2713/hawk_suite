@@ -1,7 +1,7 @@
 # Caddy provisions Let's Encrypt certificates automatically for a real DOMAIN.
 # With DOMAIN=localhost it issues its own local certificates instead — fine for
-# poking at hawk-shop, but hawk-mod needs a publicly reachable HTTPS hostname
-# because Slack delivers events to it from Slack's own servers.
+# poking at hawk-shop, but the two Slack apps need publicly reachable HTTPS
+# hostnames because Slack delivers to them from Slack's own servers.
 
 {$DOMAIN} {
 	root * /srv/portal
@@ -24,4 +24,8 @@ shop.{$DOMAIN} {
 
 mod.{$DOMAIN} {
 	reverse_proxy hawk-mod:3000
+}
+
+bot.{$DOMAIN} {
+	reverse_proxy hawk-bot:3000
 }

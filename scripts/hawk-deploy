@@ -39,7 +39,7 @@ if [[ -n ${incoming//[[:space:]]/} ]]; then
   # Refusing beats writing a broken .env: compose would start the stack with
   # blank credentials and both apps would crash-loop, which reads as an
   # unrelated outage.
-  for required in DOMAIN TOKEN_ENCRYPTION_KEY; do
+  for required in DOMAIN TOKEN_ENCRYPTION_KEY HAWK_BOT_TOKEN_ENCRYPTION_KEY; do
     if [[ -z $(value_of "$required" "$incoming") ]]; then
       echo "refusing: incoming environment has no $required" >&2
       echo "the existing .env was left untouched; fix the GitHub secret" >&2
@@ -51,6 +51,12 @@ if [[ -n ${incoming//[[:space:]]/} ]]; then
   # changing it makes every stored adult token undecryptable and forces the
   # whole team to re-authorize. A deploy is never the right place for that to
   # happen by accident, so it has to be done deliberately on the host.
+  #
+  # HAWK_BOT_TOKEN_ENCRYPTION_KEY deliberately gets no such comparison. It
+  # encrypts one workspace installation, and the cost of changing it is a
+  # single admin reinstalling hawk-bot — not a cost worth blocking a deploy
+  # over. It is still required above, so a blank one cannot crash-loop the
+  # container and read as an unrelated outage.
   if [[ -f .env ]]; then
     old_key=$(sed -n 's/^TOKEN_ENCRYPTION_KEY=//p' .env | head -1)
     new_key=$(value_of TOKEN_ENCRYPTION_KEY "$incoming")
