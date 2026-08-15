@@ -67,6 +67,7 @@ jobs:
           HAWK_BOT_SLACK_CLIENT_SECRET: ${{ secrets.HAWK_BOT_SLACK_CLIENT_SECRET }}
           HAWK_BOT_SLACK_STATE_SECRET: ${{ secrets.HAWK_BOT_SLACK_STATE_SECRET }}
           HAWK_BOT_TOKEN_ENCRYPTION_KEY: ${{ secrets.HAWK_BOT_TOKEN_ENCRYPTION_KEY }}
+          HAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64: ${{ secrets.HAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64 }}
         run: |
           set -euo pipefail
 
@@ -85,6 +86,12 @@ jobs:
             echo "::error::'openssl rand -base64 32' and store it as a secret. Losing it"
             echo "::error::only costs one reinstall of hawk-bot, but a blank one would"
             echo "::error::crash-loop the container."
+            exit 1
+          fi
+          if [ -z "${HAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64}" ]; then
+            echo "::error::HAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64 is not set. hawk-bot's"
+            echo "::error::config schema requires it and a blank one would crash-loop the"
+            echo "::error::container. See hawk_suite's .env.example for how to generate it."
             exit 1
           fi
 
@@ -167,6 +174,7 @@ jobs:
             echo "HAWK_BOT_SLACK_STATE_SECRET=${HAWK_BOT_SLACK_STATE_SECRET}"
             echo "HAWK_BOT_PUBLIC_URL=https://bot.${DOMAIN}"
             echo "HAWK_BOT_TOKEN_ENCRYPTION_KEY=${HAWK_BOT_TOKEN_ENCRYPTION_KEY}"
+            echo "HAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64=${HAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64}"
           } > /tmp/rendered.env
 
           # The forced command ignores arguments, so stdin is the channel.

@@ -120,6 +120,16 @@ services:
       PUBLIC_URL: ${HAWK_BOT_PUBLIC_URL:-https://bot.${DOMAIN}}
       PORT: 3000
 
+      # --- Google Calendar (required) ---------------------------------------
+      # A Google Cloud service account's JSON key, base64'd onto one line —
+      # read-only access to whichever calendars are shared with it. Required:
+      # hawk-bot's config schema has no default for this and the container
+      # will not boot without it. Which calendars it actually reads
+      # (google_calendar_id and the optional informational_calendar_id /
+      # mentor_calendar_id) are Slack workspace settings, not here — see
+      # hawk-bot's domain/settings.ts.
+      GOOGLE_SERVICE_ACCOUNT_KEY_BASE64: ${HAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64:-}
+
       # --- Storage ---------------------------------------------------------
       DATA_DIR: /data
       # Encrypts the stored workspace installation, which carries the bot
