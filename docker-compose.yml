@@ -125,9 +125,12 @@ services:
       # read-only access to whichever calendars are shared with it. Required:
       # hawk-bot's config schema has no default for this and the container
       # will not boot without it. Which calendars it actually reads
-      # (google_calendar_id and the optional informational_calendar_id /
+      # (team_meeting_calendar_id and the optional informational_calendar_id /
       # mentor_calendar_id) are Slack workspace settings, not here — see
-      # hawk-bot's domain/settings.ts.
+      # hawk-bot's domain/settings.ts. Holding the credential is not the same
+      # as having access: the Calendar API has to be enabled in the account's
+      # Cloud project and each calendar shared with the account's own address.
+      # See .env.example, and `/hawkbot calendar` to test it from Slack.
       GOOGLE_SERVICE_ACCOUNT_KEY_BASE64: ${HAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64:-}
 
       # --- Storage ---------------------------------------------------------

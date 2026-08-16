@@ -66,7 +66,7 @@ Settings → Secrets and variables → Actions.
 
 The `HAWK_BOT_*` secrets come from a **second Slack app**, not from hawk-mod's.
 Two apps in one workspace, and crossing their credentials makes hawk-bot answer
-as the wrong app — which presents as Slack silently ignoring `/hawk`.
+as the wrong app — which presents as Slack silently ignoring `/hawkbot`.
 
 ### Variables
 

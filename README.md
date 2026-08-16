@@ -15,7 +15,7 @@ that routes a subdomain to each, environment templates, and setup tooling.
 | `https://<domain>` | Portal — links to all three |
 | `https://shop.<domain>` | **hawk-shop** — manufacturing kanban driven by Onshape |
 | `https://mod.<domain>` | **hawk-mod** — youth-protection DM monitoring for Slack |
-| `https://bot.<domain>` | **hawk-bot** — team assistant for Slack, `/hawk` |
+| `https://bot.<domain>` | **hawk-bot** — team assistant for Slack, `/hawkbot` |
 
 ## Deploying
 
@@ -82,7 +82,7 @@ compose file for running that app on a laptop. You do not need access to the
 server to write code, and merging there produces a container image rather than
 touching the host.
 
-hawk-bot is the friendliest place to start: adding a `/hawk` subcommand is one
+hawk-bot is the friendliest place to start: adding a `/hawkbot` subcommand is one
 file and one line in its registry, and nothing it can do touches anyone's
 private messages.
 

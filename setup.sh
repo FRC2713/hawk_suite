@@ -73,6 +73,19 @@ prompt HAWK_BOT_SLACK_CLIENT_ID "Hawk Bot client ID" ""
 prompt HAWK_BOT_SLACK_CLIENT_SECRET "Hawk Bot client secret" ""
 
 echo
+echo "hawk-bot also reads the team's Google Calendars, as a service account."
+echo "Create one in the Google Cloud console (IAM & Admin -> Service Accounts),"
+echo "download its JSON key, enable the Google Calendar API in that same"
+echo "project, and share each calendar with the account's own email address at"
+echo "'See all event details'. Then encode the key onto one line:"
+# printf, not echo: the command being quoted contains a backslash escape that
+# echo is allowed to interpret rather than print.
+printf "  base64 -i service-account.json | tr -d '\\\\n'\n"
+echo "See hawk-bot's docs/deploy.md for the whole sequence. Leave blank to fill"
+echo "in .env later — hawk-bot will not start without it."
+prompt HAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64 "Hawk Bot Google service account key (base64)" ""
+
+echo
 prompt TZ "Timezone (both Slack apps)" "America/New_York"
 
 # Generated, never prompted — there is no reason for a human to pick these.
@@ -117,6 +130,7 @@ HAWK_BOT_SLACK_CLIENT_SECRET=${HAWK_BOT_SLACK_CLIENT_SECRET}
 HAWK_BOT_SLACK_STATE_SECRET=${HAWK_BOT_SLACK_STATE_SECRET}
 HAWK_BOT_PUBLIC_URL=https://bot.${DOMAIN}
 HAWK_BOT_TOKEN_ENCRYPTION_KEY=${HAWK_BOT_TOKEN_ENCRYPTION_KEY}
+HAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64=${HAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64}
 EOF
 chmod 600 .env
 
@@ -128,6 +142,16 @@ echo "!! It is not recoverable. Without it every adult must re-authorize"
 echo "!! hawk-mod and previously stored tokens are unreadable."
 echo "   (HAWK_BOT_TOKEN_ENCRYPTION_KEY is worth copying too, but losing it"
 echo "    costs only one reinstall of hawk-bot by a workspace admin.)"
+
+# Said here rather than left to be discovered: hawk-bot's config schema has no
+# default for this, so a blank one is a restart loop rather than a missing
+# feature — and a container that never comes up reads as an unrelated outage.
+if [[ -z ${HAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64} ]]; then
+  echo
+  echo "!! HAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64 is blank, so hawk-bot will"
+  echo "!! restart in a loop until you fill it in — its config schema requires it."
+  echo "   Everything else in the stack comes up regardless."
+fi
 
 if ! command -v docker >/dev/null 2>&1; then
   echo

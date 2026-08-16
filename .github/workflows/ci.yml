@@ -32,6 +32,7 @@ jobs:
           HAWK_BOT_SLACK_CLIENT_SECRET=ci-bot
           HAWK_BOT_SLACK_STATE_SECRET=ci-bot
           HAWK_BOT_TOKEN_ENCRYPTION_KEY=ci-bot
+          HAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64=ci-bot-google-key
           EOF
           docker compose config > /tmp/resolved.yml
           # The derived URLs are the thing most likely to break silently.
@@ -51,6 +52,15 @@ jobs:
           assert bot["SLACK_SIGNING_SECRET"] == "ci-bot", bot["SLACK_SIGNING_SECRET"]
           assert mod["TOKEN_ENCRYPTION_KEY"] == "ci", mod["TOKEN_ENCRYPTION_KEY"]
           assert bot["TOKEN_ENCRYPTION_KEY"] == "ci-bot", bot["TOKEN_ENCRYPTION_KEY"]
+
+          # The Google credential is prefixed in .env and unprefixed in the
+          # container, like the Slack ones. It reached the container empty once
+          # already — hawk-bot then crash-looped, which reads as a hawk-bot bug
+          # rather than as a variable this repo never passed through.
+          assert bot["GOOGLE_SERVICE_ACCOUNT_KEY_BASE64"] == "ci-bot-google-key", \
+              bot["GOOGLE_SERVICE_ACCOUNT_KEY_BASE64"]
+          assert "GOOGLE_SERVICE_ACCOUNT_KEY_BASE64" not in mod, \
+              "hawk-mod has no business holding hawk-bot Google credentials"
           '
 
       - name: A blank DOMAIN is refused
@@ -82,24 +92,38 @@ jobs:
           printf 'TOKEN_ENCRYPTION_KEY=k\n' | run | grep -q 'no DOMAIN'
           printf 'DOMAIN=x.org\nTOKEN_ENCRYPTION_KEY=k\n' | run \
             | grep -q 'no HAWK_BOT_TOKEN_ENCRYPTION_KEY'
+          printf 'DOMAIN=x.org\nTOKEN_ENCRYPTION_KEY=k\nHAWK_BOT_TOKEN_ENCRYPTION_KEY=b\n' | run \
+            | grep -q 'no HAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64'
+
+          # Everything below is about how a *complete* environment is handled,
+          # so each one carries the full required set.
+          complete() { # complete <token-key> <bot-token-key>
+            printf 'DOMAIN=x.org\nTOKEN_ENCRYPTION_KEY=%s\nHAWK_BOT_TOKEN_ENCRYPTION_KEY=%s\nHAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64=g\n' "$1" "$2"
+          }
 
           # Changing TOKEN_ENCRYPTION_KEY forces every adult to re-authorize
           # and orphans stored tokens. It must never happen via a deploy.
-          printf 'DOMAIN=x.org\nTOKEN_ENCRYPTION_KEY=ORIGINAL\nHAWK_BOT_TOKEN_ENCRYPTION_KEY=b\n' > "$T/.env"
-          printf 'DOMAIN=x.org\nTOKEN_ENCRYPTION_KEY=CHANGED\nHAWK_BOT_TOKEN_ENCRYPTION_KEY=b\n' | run \
-            | grep -q 'differs from the one on this host'
+          complete ORIGINAL b > "$T/.env"
+          complete CHANGED b | run | grep -q 'differs from the one on this host'
           grep -q 'TOKEN_ENCRYPTION_KEY=ORIGINAL' "$T/.env"
 
           # hawk-bot's key is deliberately NOT compared — rotating it costs one
           # reinstall, and refusing a deploy over that would be the wrong
           # trade. If this ever starts refusing, the two keys got conflated.
-          printf 'DOMAIN=x.org\nTOKEN_ENCRYPTION_KEY=SAME\nHAWK_BOT_TOKEN_ENCRYPTION_KEY=ORIGINAL\n' > "$T/.env"
-          out=$(printf 'DOMAIN=x.org\nTOKEN_ENCRYPTION_KEY=SAME\nHAWK_BOT_TOKEN_ENCRYPTION_KEY=ROTATED\n' | run)
+          complete SAME ORIGINAL > "$T/.env"
+          out=$(complete SAME ROTATED | run)
           case "$out" in
             *"differs from the one on this host"*)
               echo "hawk-deploy refused a hawk-bot key rotation"; exit 1 ;;
           esac
           grep -q 'HAWK_BOT_TOKEN_ENCRYPTION_KEY=ROTATED' "$T/.env"
+
+          # The Google credential is rotatable too, and for the same reason:
+          # it is a read-only key on a service account, and re-issuing one is
+          # a normal thing to do. Nothing stored depends on it.
+          complete SAME SAME > "$T/.env"
+          printf 'DOMAIN=x.org\nTOKEN_ENCRYPTION_KEY=SAME\nHAWK_BOT_TOKEN_ENCRYPTION_KEY=SAME\nHAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64=REISSUED\n' | run >/dev/null
+          grep -q 'HAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64=REISSUED' "$T/.env"
 
       - name: Every variable setup.sh writes is documented in .env.example
         run: |
