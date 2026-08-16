@@ -39,7 +39,13 @@ if [[ -n ${incoming//[[:space:]]/} ]]; then
   # Refusing beats writing a broken .env: compose would start the stack with
   # blank credentials and both apps would crash-loop, which reads as an
   # unrelated outage.
-  for required in DOMAIN TOKEN_ENCRYPTION_KEY HAWK_BOT_TOKEN_ENCRYPTION_KEY; do
+  # HAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64 is on this list for the same
+  # reason as the encryption keys: hawk-bot's config schema has no default for
+  # it, so a blank one is a crash loop rather than a calendar that stays quiet.
+  # deploy.yml checks it too, but this is the end that actually writes .env,
+  # and it is the end a future second deploy path would also have to pass.
+  for required in DOMAIN TOKEN_ENCRYPTION_KEY HAWK_BOT_TOKEN_ENCRYPTION_KEY \
+                  HAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64; do
     if [[ -z $(value_of "$required" "$incoming") ]]; then
       echo "refusing: incoming environment has no $required" >&2
       echo "the existing .env was left untouched; fix the GitHub secret" >&2

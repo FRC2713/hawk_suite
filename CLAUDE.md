@@ -15,7 +15,7 @@ The apps live in their own repos and publish container images to GHCR:
 | --- | --- | --- | --- |
 | hawk-shop | `FRC2713/hawk-shop` | `ghcr.io/frc2713/hawk-shop` | Onshape-driven manufacturing kanban |
 | hawk-mod | `FRC2713/hawk-mod` | `ghcr.io/frc2713/hawk-mod` | Youth-protection DM monitoring for Slack |
-| hawk-bot | `FRC2713/hawk-bot` | `ghcr.io/frc2713/hawk-bot` | Team assistant for Slack (`/hawk`) |
+| hawk-bot | `FRC2713/hawk-bot` | `ghcr.io/frc2713/hawk-bot` | Team assistant for Slack (`/hawkbot`) |
 
 Implication: bugs in an app's *behavior* belong in that app's repo, not here.
 This repo owns routing, wiring, env plumbing, and the deploy/update experience.
@@ -115,10 +115,23 @@ from the host's, and leaves `.env` untouched — writing `.env` every deploy
 means a wrong secret would otherwise silently orphan every enrolled adult's
 token. CI tests that refusal; don't relax it.
 
-`HAWK_BOT_TOKEN_ENCRYPTION_KEY` is *required* but deliberately **not**
-compared. It encrypts one workspace installation, so changing it costs a single
-admin reinstall — not worth blocking a deploy over. CI tests that it stays
-rotatable, so the two keys don't get conflated later.
+`HAWK_BOT_TOKEN_ENCRYPTION_KEY` and
+`HAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64` are *required* but deliberately
+**not** compared. The first encrypts one workspace installation, so changing it
+costs a single admin reinstall; the second is a read-only key on a service
+account that nothing stored depends on. Neither is worth blocking a deploy
+over. CI tests that both stay rotatable, so they don't get conflated with
+`TOKEN_ENCRYPTION_KEY` later.
+
+Required means required: hawk-bot's config schema has no default for the Google
+key, so a blank one is a crash loop, not a quiet calendar. That is why both
+`deploy.yml` and `hawk-deploy` check it — and why the compose wiring is
+asserted in CI. It shipped once with the variable never plumbed through at all.
+
+Holding that credential is not the same as having calendar access, and this
+repo cannot verify the difference: the Calendar API has to be enabled in the
+service account's Cloud project, and each calendar shared with the account's
+own address. `/hawkbot calendar` in Slack is the check that can see all three.
 
 Understand what that does and does not protect. Deployment applies whatever
 `main` says, and `docker-compose.yml` can mount any host path — so **merging to

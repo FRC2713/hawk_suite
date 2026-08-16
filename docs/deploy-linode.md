@@ -171,8 +171,32 @@ on their own account. `/hawkmod status` shows coverage.
 
 **hawk-bot**: a workspace admin opens `https://bot.<domain>/slack/install`
 once. That is the whole setup — nobody else authorizes anything, because
-hawk-bot asks for no user tokens. `/hawk help` in any channel confirms it, and
-`/hawk config` sets the workspace settings.
+hawk-bot asks for no user tokens. `/hawkbot help` in any channel confirms it, and
+`/hawkbot config` sets the workspace settings.
+
+**hawk-bot's calendars** are a second, separate setup, and the one that
+actually catches people out. Holding the service account credential
+(`HAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64`) is not the same as having
+access to anything. Three things have to be true on Google's side:
+
+1. The Google Calendar API is **enabled** in the service account's Cloud
+   project. Creating the account does not enable it.
+2. Each calendar is **shared** with the service account's own email address,
+   at "See all event details". A service account is not a member of the
+   workspace; nothing reaches it implicitly, and "See only free/busy" is not
+   enough.
+3. The calendar ids are set from Slack:
+   ```
+   /hawkbot config set team_meeting_calendar_id  <id>
+   /hawkbot config set informational_calendar_id <id>   (optional)
+   /hawkbot config set mentor_calendar_id        <id>   (optional)
+   ```
+
+Miss any one and the symptom is identical — no events, no Check-in Posts, no
+Weekly Summary. Run **`/hawkbot calendar`**: it prints the address to share
+with, then fetches each configured calendar live and names which of the three
+is wrong. `/hawkbot status` shows the last failure per scheduler step, for a
+sync that broke after it was working.
 
 ## Changing the domain later
 
@@ -213,7 +237,7 @@ Order matters here: do step 6 before saving the Event Subscriptions URL, or the
 verification challenge fails.
 
 **5. Slack — hawk-bot's app.** The same four fields, pointed at
-`https://bot.<new-domain>`, with `/hawk` as the slash command. Different app,
+`https://bot.<new-domain>`, with `/hawkbot` as the slash command. Different app,
 different dashboard; nothing is shared between them.
 
 **6. Restart.** `docker compose up -d` on the host. Caddy requests certificates
@@ -221,7 +245,7 @@ for the new hostnames on its own; the old ones stay in its store harmlessly.
 
 **7. Verify.** `curl -s https://mod.<new-domain>/health` and
 `curl -s https://bot.<new-domain>/health`, then `/hawkmod status` in Slack —
-coverage should read the same N/N it did before — and `/hawk status`.
+coverage should read the same N/N it did before — and `/hawkbot status`.
 
 Adults do **not** re-authorize, and hawk-bot does **not** need reinstalling.
 Tokens are keyed to the Slack user and workspace, not the URL, so both survive
