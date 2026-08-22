@@ -70,7 +70,7 @@ review burden.
 One Linode, one compose stack:
 
 - **Caddy** is the only container binding host ports (80/443). It serves the
-  static portal at the root domain and reverse-proxies `shop.`, `mod.`, and
+  static portal at `apps.` and reverse-proxies `shop.`, `mod.`, and
   `bot.` to the app containers by service name. Let's Encrypt certificates are
   automatic.
 - **The apps** publish no ports and are reachable only through Caddy.

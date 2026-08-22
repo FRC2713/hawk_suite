@@ -12,7 +12,7 @@ that routes a subdomain to each, environment templates, and setup tooling.
 
 | URL | App |
 | --- | --- |
-| `https://<domain>` | Portal — links to all three |
+| `https://apps.<domain>` | Portal — links to all three |
 | `https://shop.<domain>` | **hawk-shop** — manufacturing kanban driven by Onshape |
 | `https://mod.<domain>` | **hawk-mod** — youth-protection DM monitoring for Slack |
 | `https://bot.<domain>` | **hawk-bot** — team assistant for Slack, `/hawkbot` |
@@ -41,8 +41,9 @@ does the interactive version — it asks for the domain and each app's
 credentials, generates both Slack apps' secrets, writes `.env`, and starts the
 stack.
 
-DNS: point A records for `<domain>`, `shop.<domain>`, `mod.<domain>`, and
-`bot.<domain>` at the host (or `<domain>` plus a wildcard `*.<domain>`).
+DNS: point A records for `apps.<domain>`, `shop.<domain>`, `mod.<domain>`, and
+`bot.<domain>` at the host (or a wildcard `*.<domain>`). The bare domain is
+never served, so it can keep pointing at the team website.
 
 [`cloud-init.yaml`](cloud-init.yaml) gets a fresh Linode to the point of that
 `./setup.sh` — paste it into the User Data field when creating the instance.
@@ -99,7 +100,7 @@ Caddyfile              subdomain routing + automatic HTTPS
 setup.sh               interactive first run → .env → docker compose up
 update.sh              pull, restart, prune
 cloud-init.yaml        Linode user-data: Docker, a `hawk` user, this repo
-portal/                static landing page served at the root domain
+portal/                static landing page served at apps.<domain>
 scripts/provision-host.sh  one-time host bootstrap, run by the server's owner
 scripts/hawk-deploy    host-side deploy, run by the Deploy workflow over SSH
 docs/                  deploy-linode.md, continuous-deployment.md

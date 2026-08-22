@@ -59,7 +59,9 @@
     </footer>
   </main>
   <script>
-    const host = window.location.host;
+    // The portal is served at apps.<domain>; the apps are siblings at
+    // shop./mod./bot.<domain>, so drop this page's own "apps." label first.
+    const host = window.location.host.replace(/^apps\./, '');
     const proto = window.location.protocol;
     document.getElementById('shop').href = `${proto}//shop.${host}`;
     document.getElementById('mod').href = `${proto}//mod.${host}`;

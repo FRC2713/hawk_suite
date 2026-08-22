@@ -216,7 +216,7 @@ jobs:
           }
 
           rc=0
-          check "https://${DOMAIN}"            "portal"    || rc=1
+          check "https://apps.${DOMAIN}"       "portal"    || rc=1
           check "https://shop.${DOMAIN}"       "hawk-shop" || rc=1
           check "https://mod.${DOMAIN}/health" "hawk-mod"  || rc=1
           check "https://bot.${DOMAIN}/health" "hawk-bot"  || rc=1

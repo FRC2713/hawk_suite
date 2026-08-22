@@ -55,13 +55,15 @@ Four A records, all to the Linode's public IPv4:
 
 | Host           | Type | Value            |
 | -------------- | ---- | ---------------- |
-| `<domain>`     | A    | the Linode's IP  |
+| `apps`         | A    | the Linode's IP  |
 | `shop`         | A    | the Linode's IP  |
 | `mod`          | A    | the Linode's IP  |
 | `bot`          | A    | the Linode's IP  |
 
-A wildcard `*.<domain>` instead of the three subdomain records works too. Add
-AAAA records for the IPv6 address if you want it reachable over v6.
+The bare domain is never served by this stack — it can keep pointing at the
+team website. A wildcard `*.<domain>` instead of the four subdomain records
+works too, if nothing else occupies the zone's subdomains. Add AAAA records
+for the IPv6 address if you want it reachable over v6.
 
 ### Before the real domain is ready
 

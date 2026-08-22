@@ -54,7 +54,7 @@ they are all a few seconds.
 One Docker host runs everything (`docker-compose.yml`):
 
 - **caddy** (`caddy:2-alpine`) — the only container with published ports
-  (80/443). Serves the static portal at the root domain and reverse-proxies by
+  (80/443). Serves the static portal at `apps.` and reverse-proxies by
   subdomain. Automatic Let's Encrypt certificates.
 - **hawk-shop** — Node/TanStack Start server on 3000. SQLite + uploaded images
   under `/data` (volume `hawk_shop_data`). Onshape OAuth outbound. Health at
@@ -67,7 +67,7 @@ One Docker host runs everything (`docker-compose.yml`):
   servers**. Health at `/health`. Holds a workspace bot token and no user
   tokens at all, which is what keeps it uncontroversial next to hawk-mod.
 
-Routing lives in `Caddyfile`: root → portal, `shop.` → hawk-shop:3000, `mod.` →
+Routing lives in `Caddyfile`: `apps.` → portal, `shop.` → hawk-shop:3000, `mod.` →
 hawk-mod:3000, `bot.` → hawk-bot:3000. `$DOMAIN` is interpolated at container
 start. Editing the Caddyfile also means bumping `CADDY_CONFIG_REV` in
 `docker-compose.yml` — the comment there says why.

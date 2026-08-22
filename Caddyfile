@@ -3,7 +3,10 @@
 # poking at hawk-shop, but the two Slack apps need publicly reachable HTTPS
 # hostnames because Slack delivers to them from Slack's own servers.
 
-{$DOMAIN} {
+# The portal lives at apps.<domain>, not the bare domain — the root of
+# redhawkrobotics.org is the team website, hosted elsewhere. Nothing here
+# serves the bare domain, so its DNS should not point at this host.
+apps.{$DOMAIN} {
 	root * /srv/portal
 	file_server
 }
