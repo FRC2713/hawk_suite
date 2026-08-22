@@ -16,7 +16,7 @@ services:
       # hawk-deploy reloads the config explicitly, but only from the version
       # installed on the host; bump this when changing the Caddyfile to force a
       # recreate regardless of which hawk-deploy the host is running.
-      CADDY_CONFIG_REV: "3"
+      CADDY_CONFIG_REV: "4"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./portal:/srv/portal:ro

@@ -31,8 +31,9 @@ command -v openssl >/dev/null 2>&1 || {
 echo "hawk_suite setup"
 echo "================"
 echo
-echo "The suite serves four hostnames off one domain:"
-echo "  https://<domain>       portal"
+echo "The suite serves four hostnames off one domain (the bare domain is"
+echo "left alone — it can keep pointing at the team website):"
+echo "  https://apps.<domain>  portal"
 echo "  https://shop.<domain>  hawk-shop"
 echo "  https://mod.<domain>   hawk-mod"
 echo "  https://bot.<domain>   hawk-bot"
