@@ -62,7 +62,7 @@ jobs:
           assert bot["GOOGLE_SERVICE_ACCOUNT_KEY_BASE64"] == "ci-bot-google-key", \
               bot["GOOGLE_SERVICE_ACCOUNT_KEY_BASE64"]
           # hawk-mod now has a Google key of its own, and that one can read
-          # the lifecycle sheet — every student's row. Crossing them would hand
+          # the lifecycle sheet — the row of every student. Crossing them would hand
           # hawk-bot student data, or leave hawk-mod reading calendars.
           assert mod["GOOGLE_SERVICE_ACCOUNT_KEY_BASE64"] == "ci-mod-google-key", \
               mod["GOOGLE_SERVICE_ACCOUNT_KEY_BASE64"]
