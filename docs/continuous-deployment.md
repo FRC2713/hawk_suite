@@ -63,6 +63,7 @@ Settings → Secrets and variables → Actions.
 | `HAWK_BOT_SLACK_CLIENT_SECRET` | hawk-bot's Slack app → Basic Information |
 | `HAWK_BOT_SLACK_STATE_SECRET` | `openssl rand -hex 32` |
 | `HAWK_BOT_TOKEN_ENCRYPTION_KEY` | `openssl rand -base64 32` |
+| `HAWK_MOD_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64` | optional — hawk-mod's lifecycle sync; see hawk-mod's `docs/google-setup.md` |
 
 The `HAWK_BOT_*` secrets come from a **second Slack app**, not from hawk-mod's.
 Two apps in one workspace, and crossing their credentials makes hawk-bot answer
@@ -80,6 +81,7 @@ changes are visible:
 | `LOG_MODE` | `full` |
 | `TZ` | `America/New_York` |
 | `STUDENT_USERGROUP`, `ADULT_USERGROUP` | empty (roster by CSV) |
+| `LIFECYCLE_SHEET_ID` | empty (hawk-mod's lifecycle sync off) |
 | `ONSHAPE_IFRAME_EMBED` | `false` |
 
 Changing the domain is now editing the `DOMAIN` variable and re-running the

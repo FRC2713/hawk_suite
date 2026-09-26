@@ -87,6 +87,15 @@ services:
       STUDENT_USERGROUP: ${STUDENT_USERGROUP:-}
       ADULT_USERGROUP: ${ADULT_USERGROUP:-}
 
+      # --- Lifecycle sync (optional) ---------------------------------------
+      # Reads the RHR User Lifecycle Management DB sheet. Its own service
+      # account, not hawk-bot's: this one can read every student's row, so
+      # the two keys are separate secrets and CI checks they never cross.
+      # Unset, hawk-mod runs exactly as before. See hawk-mod's
+      # docs/google-setup.md.
+      GOOGLE_SERVICE_ACCOUNT_KEY_BASE64: ${HAWK_MOD_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64:-}
+      LIFECYCLE_SHEET_ID: ${LIFECYCLE_SHEET_ID:-}
+
       # --- Schedules -------------------------------------------------------
       TZ: ${TZ:-America/New_York}
       SWEEP_CRON: ${SWEEP_CRON:-0 3 * * *}

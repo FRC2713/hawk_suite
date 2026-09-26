@@ -33,6 +33,8 @@ jobs:
           HAWK_BOT_SLACK_STATE_SECRET=ci-bot
           HAWK_BOT_TOKEN_ENCRYPTION_KEY=ci-bot
           HAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64=ci-bot-google-key
+          HAWK_MOD_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64=ci-mod-google-key
+          LIFECYCLE_SHEET_ID=ci-sheet
           EOF
           docker compose config > /tmp/resolved.yml
           # The derived URLs are the thing most likely to break silently.
@@ -59,8 +61,14 @@ jobs:
           # rather than as a variable this repo never passed through.
           assert bot["GOOGLE_SERVICE_ACCOUNT_KEY_BASE64"] == "ci-bot-google-key", \
               bot["GOOGLE_SERVICE_ACCOUNT_KEY_BASE64"]
-          assert "GOOGLE_SERVICE_ACCOUNT_KEY_BASE64" not in mod, \
-              "hawk-mod has no business holding hawk-bot Google credentials"
+          # hawk-mod now has a Google key of its own, and that one can read
+          # the lifecycle sheet — the row of every student. Crossing them would hand
+          # hawk-bot student data, or leave hawk-mod reading calendars.
+          assert mod["GOOGLE_SERVICE_ACCOUNT_KEY_BASE64"] == "ci-mod-google-key", \
+              mod["GOOGLE_SERVICE_ACCOUNT_KEY_BASE64"]
+          assert mod["LIFECYCLE_SHEET_ID"] == "ci-sheet", mod["LIFECYCLE_SHEET_ID"]
+          assert "LIFECYCLE_SHEET_ID" not in bot, \
+              "hawk-bot has no business knowing where the lifecycle sheet is"
           '
 
       - name: A blank DOMAIN is refused

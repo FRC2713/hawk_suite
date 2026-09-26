@@ -48,6 +48,9 @@ jobs:
           TZ: ${{ vars.TZ || 'America/New_York' }}
           STUDENT_USERGROUP: ${{ vars.STUDENT_USERGROUP }}
           ADULT_USERGROUP: ${{ vars.ADULT_USERGROUP }}
+          # hawk-mod's lifecycle sync. Optional: unset, hawk-mod runs as before
+          # and /hawkmod lifecycle says Google is not configured.
+          LIFECYCLE_SHEET_ID: ${{ vars.LIFECYCLE_SHEET_ID }}
           ONSHAPE_IFRAME_EMBED: ${{ vars.ONSHAPE_IFRAME_EMBED || 'false' }}
 
           ONSHAPE_CLIENT_ID: ${{ secrets.ONSHAPE_CLIENT_ID }}
@@ -58,6 +61,9 @@ jobs:
           SLACK_STATE_SECRET: ${{ secrets.SLACK_STATE_SECRET }}
           ALERT_CHANNEL_ID: ${{ secrets.ALERT_CHANNEL_ID }}
           TOKEN_ENCRYPTION_KEY: ${{ secrets.TOKEN_ENCRYPTION_KEY }}
+          # A different service account from hawk-bot's: this one can read the
+          # lifecycle sheet, which names every student. Never cross the two.
+          HAWK_MOD_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64: ${{ secrets.HAWK_MOD_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64 }}
 
           # hawk-bot's Slack app is a separate one from hawk-mod's, so these
           # are separate secrets. Crossing them would have hawk-bot answering
@@ -166,6 +172,8 @@ jobs:
             echo "LOG_MODE=${LOG_MODE}"
             echo "STUDENT_USERGROUP=${STUDENT_USERGROUP}"
             echo "ADULT_USERGROUP=${ADULT_USERGROUP}"
+            echo "HAWK_MOD_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64=${HAWK_MOD_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64}"
+            echo "LIFECYCLE_SHEET_ID=${LIFECYCLE_SHEET_ID}"
             echo "TZ=${TZ}"
             echo ""
             echo "HAWK_BOT_SLACK_SIGNING_SECRET=${HAWK_BOT_SLACK_SIGNING_SECRET}"
