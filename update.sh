@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Pull the latest app images and restart whatever changed.
-# Both apps apply their database migrations on boot, so this is the whole
-# upgrade procedure.
+# Interactive installations only. Production releases go through Actions.
 set -euo pipefail
 cd "$(dirname "$0")"
-
+if [[ -f .deploy/current.json ]]; then
+  echo 'This host uses reviewed releases. Run the Deploy workflow from main.' >&2
+  exit 1
+fi
 docker compose pull
-docker compose up -d
-docker image prune -f
+docker compose up -d --wait --wait-timeout 180
 docker compose ps

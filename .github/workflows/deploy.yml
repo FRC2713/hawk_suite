@@ -1,37 +1,47 @@
 name: Deploy
 
-# The whole deployment. Nobody SSHes into the host: this renders .env from
-# GitHub Secrets, ships it over the SSH session, and the forced command on the
-# other end applies it. See docs/continuous-deployment.md.
-#
-# Deployment is deliberately not automatic on merge. It runs when someone asks
-# for it, and the `production` environment gates it behind a reviewer — that
-# gate is the real control, for the reasons in the doc.
-#
-# To deploy automatically whenever main moves, uncomment the `push` trigger.
 on:
   workflow_dispatch:
-  # push:
-  #   branches: [main]
 
-  # Lets the app repos ask for a deploy after they publish a new image:
-  #   gh api repos/FRC2713/hawk_suite/dispatches -f event_type=deploy
-  repository_dispatch:
-    types: [deploy]
+permissions:
+  contents: read
 
 concurrency:
-  group: deploy
+  group: production-deploy
   cancel-in-progress: false
 
 jobs:
-  deploy:
+  plan:
     runs-on: ubuntu-latest
+    outputs:
+      revision: ${{ steps.pin.outputs.revision }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: pin
+        name: Pin protected main and show the proposed release
+        env:
+          REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          [[ "$REF" == refs/heads/main ]] || { echo 'Deploy must run from main'; exit 1; }
+          python3 scripts/release.py --require-ready
+          echo "revision=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Proposed suite revision: $GITHUB_SHA"
+            echo '```json'
+            cat releases/production.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+  deploy:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     environment: production
     steps:
-      # Plain ssh rather than a third-party action: this reaches the host
-      # holding hawk-mod's data, and a marketplace action is one more thing
-      # that could be compromised in the supply chain.
-      - name: Deploy
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.revision }}
+      - name: Deploy approved revision
         env:
           SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
@@ -41,13 +51,8 @@ jobs:
           # Non-secret settings live as repository variables so they are
           # readable and diffable; only credentials are secrets.
           DOMAIN: ${{ vars.DOMAIN }}
-          HAWK_SHOP_TAG: ${{ vars.HAWK_SHOP_TAG || 'latest' }}
-          HAWK_MOD_TAG: ${{ vars.HAWK_MOD_TAG || 'latest' }}
-          HAWK_BOT_TAG: ${{ vars.HAWK_BOT_TAG || 'latest' }}
           LOG_MODE: ${{ vars.LOG_MODE || 'full' }}
           TZ: ${{ vars.TZ || 'America/New_York' }}
-          STUDENT_USERGROUP: ${{ vars.STUDENT_USERGROUP }}
-          ADULT_USERGROUP: ${{ vars.ADULT_USERGROUP }}
           # hawk-mod's lifecycle sync. Optional: unset, hawk-mod runs as before
           # and /hawkmod lifecycle says Google is not configured.
           LIFECYCLE_SHEET_ID: ${{ vars.LIFECYCLE_SHEET_ID }}
@@ -74,181 +79,15 @@ jobs:
           HAWK_BOT_SLACK_STATE_SECRET: ${{ secrets.HAWK_BOT_SLACK_STATE_SECRET }}
           HAWK_BOT_TOKEN_ENCRYPTION_KEY: ${{ secrets.HAWK_BOT_TOKEN_ENCRYPTION_KEY }}
           HAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64: ${{ secrets.HAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64 }}
+          MANAGED_USERGROUPS: ${{ vars.MANAGED_USERGROUPS }}
+          REPORT_TIME: ${{ vars.REPORT_TIME }}
+          BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+          SUITE_SHA: ${{ needs.plan.outputs.revision }}
+        run: bash scripts/send-deploy.sh
+      - name: Deployment receipt
+        if: always()
         run: |
-          set -euo pipefail
-
-          if [ -z "${DOMAIN}" ]; then
-            echo "::error::The DOMAIN repository variable is not set."
-            exit 1
+          if [ -f receipt.txt ]; then
+            grep '^HAWK_RECEIPT=' receipt.txt | cut -d= -f2- | python3 -m json.tool >> "$GITHUB_STEP_SUMMARY" || true
           fi
-          if [ -z "${TOKEN_ENCRYPTION_KEY}" ]; then
-            echo "::error::TOKEN_ENCRYPTION_KEY is not set. Generate it ONCE with"
-            echo "::error::'openssl rand -base64 32' and store it as a secret — it is"
-            echo "::error::not recoverable, and changing it forces every adult to re-authorize."
-            exit 1
-          fi
-          if [ -z "${HAWK_BOT_TOKEN_ENCRYPTION_KEY}" ]; then
-            echo "::error::HAWK_BOT_TOKEN_ENCRYPTION_KEY is not set. Generate it with"
-            echo "::error::'openssl rand -base64 32' and store it as a secret. Losing it"
-            echo "::error::only costs one reinstall of hawk-bot, but a blank one would"
-            echo "::error::crash-loop the container."
-            exit 1
-          fi
-          if [ -z "${HAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64}" ]; then
-            echo "::error::HAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64 is not set. hawk-bot's"
-            echo "::error::config schema requires it and a blank one would crash-loop the"
-            echo "::error::container. See hawk_suite's .env.example for how to generate it."
-            exit 1
-          fi
-
-          install -m 700 -d ~/.ssh
-
-          # Accept the key either as PEM or as a single base64 line. A private
-          # key is multi-line, and every hand-copy through a terminal is a
-          # chance to lose a character to wrapping — which surfaces only as
-          # "error in libcrypto" at connect time. base64 -w0 makes it one line
-          # with nothing to wrap, so prefer that form when setting the secret.
-          if printf '%s' "$SSH_KEY" | grep -q 'BEGIN .*PRIVATE KEY'; then
-            printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
-          else
-            printf '%s' "$SSH_KEY" | tr -d '[:space:]' | base64 -d > ~/.ssh/id_ed25519 2>/dev/null \
-              || { echo "::error::DEPLOY_SSH_KEY is neither a PEM private key nor valid base64."; exit 1; }
-          fi
-          chmod 600 ~/.ssh/id_ed25519
-
-          # Fail here, with a usable message, rather than as a bare
-          # "Permission denied" that looks like the key was never authorized.
-          if ! ssh-keygen -y -f ~/.ssh/id_ed25519 >/dev/null 2>&1; then
-            echo "::error::DEPLOY_SSH_KEY is corrupt — OpenSSH cannot parse it."
-            echo "::error::It is almost always truncated or re-wrapped in transit."
-            echo "::error::Re-set it as a single line from the host that holds it:"
-            echo "::error::  sudo base64 -w0 /home/deploy/.ssh/id_ed25519"
-            echo "::error::Verify before setting: ssh-keygen -y -f <file>"
-            exit 1
-          fi
-          # Pinned, not StrictHostKeyChecking=no — otherwise anything that can
-          # answer on port 22 gets handed the deploy key and the credentials
-          # that follow it.
-          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
-
-          # A malformed DEPLOY_KNOWN_HOSTS otherwise surfaces as a bare
-          # "Host key verification failed" and exit 255, which reads like the
-          # host is unreachable rather than like a bad secret. The value is
-          # hand-copied, and long base64 lines lose characters to terminal
-          # wrapping, so check it before spending an approval on it.
-          if ! grep -qF "$DEPLOY_HOST" ~/.ssh/known_hosts || ! grep -q 'ssh-' ~/.ssh/known_hosts; then
-            echo "::error::DEPLOY_KNOWN_HOSTS has no usable entry for the deploy host."
-            echo "::error::Regenerate it from a machine that can reach the server:"
-            echo "::error::  ssh-keyscan <host> | grep -v '^#'"
-            echo "::error::and paste the whole output — host keys are public, so"
-            echo "::error::there is no risk in re-scanning rather than hand-copying."
-            exit 1
-          fi
-
-          # Rendered to a file mode 600 rather than piped inline so the values
-          # never appear in a command line. The runner is ephemeral.
-          umask 077
-          {
-            echo "# Rendered by the Deploy workflow. Edits here are overwritten."
-            echo "DOMAIN=${DOMAIN}"
-            echo "HAWK_SHOP_TAG=${HAWK_SHOP_TAG}"
-            echo "HAWK_MOD_TAG=${HAWK_MOD_TAG}"
-            echo "HAWK_BOT_TAG=${HAWK_BOT_TAG}"
-            echo ""
-            echo "ONSHAPE_CLIENT_ID=${ONSHAPE_CLIENT_ID}"
-            echo "ONSHAPE_CLIENT_SECRET=${ONSHAPE_CLIENT_SECRET}"
-            echo "ONSHAPE_REDIRECT_URI=https://shop.${DOMAIN}/auth/onshape/callback"
-            echo "ONSHAPE_SCOPE=OAuth2Read OAuth2ReadPII OAuth2Write"
-            echo "APP_URL=https://shop.${DOMAIN}"
-            echo "ONSHAPE_IFRAME_EMBED=${ONSHAPE_IFRAME_EMBED}"
-            echo ""
-            echo "SLACK_SIGNING_SECRET=${SLACK_SIGNING_SECRET}"
-            echo "SLACK_CLIENT_ID=${SLACK_CLIENT_ID}"
-            echo "SLACK_CLIENT_SECRET=${SLACK_CLIENT_SECRET}"
-            echo "SLACK_STATE_SECRET=${SLACK_STATE_SECRET}"
-            echo "PUBLIC_URL=https://mod.${DOMAIN}"
-            echo "ALERT_CHANNEL_ID=${ALERT_CHANNEL_ID}"
-            echo "TOKEN_ENCRYPTION_KEY=${TOKEN_ENCRYPTION_KEY}"
-            echo "LOG_MODE=${LOG_MODE}"
-            echo "STUDENT_USERGROUP=${STUDENT_USERGROUP}"
-            echo "ADULT_USERGROUP=${ADULT_USERGROUP}"
-            echo "HAWK_MOD_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64=${HAWK_MOD_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64}"
-            echo "LIFECYCLE_SHEET_ID=${LIFECYCLE_SHEET_ID}"
-            echo "TZ=${TZ}"
-            echo ""
-            echo "HAWK_BOT_SLACK_SIGNING_SECRET=${HAWK_BOT_SLACK_SIGNING_SECRET}"
-            echo "HAWK_BOT_SLACK_CLIENT_ID=${HAWK_BOT_SLACK_CLIENT_ID}"
-            echo "HAWK_BOT_SLACK_CLIENT_SECRET=${HAWK_BOT_SLACK_CLIENT_SECRET}"
-            echo "HAWK_BOT_SLACK_STATE_SECRET=${HAWK_BOT_SLACK_STATE_SECRET}"
-            echo "HAWK_BOT_PUBLIC_URL=https://bot.${DOMAIN}"
-            echo "HAWK_BOT_TOKEN_ENCRYPTION_KEY=${HAWK_BOT_TOKEN_ENCRYPTION_KEY}"
-            echo "HAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64=${HAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64}"
-          } > /tmp/rendered.env
-
-          # The forced command ignores arguments, so stdin is the channel.
-          ssh -i ~/.ssh/id_ed25519 \
-              -o IdentitiesOnly=yes \
-              -o StrictHostKeyChecking=yes \
-              "${DEPLOY_USER}@${DEPLOY_HOST}" < /tmp/rendered.env
-
-          shred -u /tmp/rendered.env
-
-      # The stack reporting healthy is not the same as the suite working.
-      # caddy:2-alpine declares no HEALTHCHECK, so the poll on the host treats
-      # it as up no matter what — a certificate that never issues looks exactly
-      # like a clean deploy from in there. Check from outside instead.
-      - name: Verify HTTPS
-        env:
-          DOMAIN: ${{ vars.DOMAIN }}
-        run: |
-          set -uo pipefail
-
-          # First issuance is three ACME round trips and can take a minute or
-          # two; a fixed sleep would be either flaky or wasteful.
-          check() { # check <url> <what>
-            local url=$1 what=$2 deadline=$((SECONDS + 180)) code=000
-            while ((SECONDS < deadline)); do
-              # curl already writes 000 via -w when it cannot connect; the ||
-              # replaces it rather than appending, so the message stays legible.
-              code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 "$url") || code=000
-              # 2xx and 3xx both count: hawk-shop redirects to Onshape when
-              # nobody is signed in, which is a working app.
-              if [[ $code =~ ^[23] ]]; then
-                echo "  ok   $what ($code)"
-                return 0
-              fi
-              sleep 10
-            done
-            echo "::error::$what did not serve HTTPS within 180s (last: $code)"
-            return 1
-          }
-
-          rc=0
-          check "https://apps.${DOMAIN}"       "portal"    || rc=1
-          check "https://shop.${DOMAIN}"       "hawk-shop" || rc=1
-          check "https://mod.${DOMAIN}/health" "hawk-mod"  || rc=1
-          check "https://bot.${DOMAIN}/health" "hawk-bot"  || rc=1
-
-          # A plain-http redirect is invisible in a browser tab, because Caddy
-          # bounces it back to HTTPS. Inside Onshape's HTTPS iframe it is mixed
-          # content and Chrome blocks it silently — a blank panel, no error
-          # anywhere. The tab-level checks above cannot see this at all.
-          redirect=$(curl -sS -o /dev/null -w '%{redirect_url}' --max-time 15 \
-                     "https://shop.${DOMAIN}/onshape_connector?elementType=PARTSTUDIO" || true)
-          case "$redirect" in
-            http://*)
-              echo "::error::hawk-shop redirects to plain HTTP: ${redirect%%\?*}"
-              echo "::error::The Onshape iframe will render blank. Caddy should be"
-              echo "::error::rewriting this — check that the config reloaded."
-              rc=1 ;;
-            *) echo "  ok   redirects stay on https" ;;
-          esac
-
-          if ((rc)); then
-            echo "::notice::Containers may be running fine — this checks TLS and routing."
-            echo "::notice::Usual causes: the Linode Cloud Firewall blocking 80 (Caddy"
-            echo "::notice::needs it for the HTTP-01 challenge), DNS not pointing at the"
-            echo "::notice::host, or Let's Encrypt rate limits. 'docker compose logs caddy'"
-            echo "::notice::names which."
-          fi
-          exit $rc
+          echo 'If apply failed, inspect the retained failed-release record and encrypted backup before attempting schema recovery.' >> "$GITHUB_STEP_SUMMARY"

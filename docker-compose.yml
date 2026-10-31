@@ -30,7 +30,7 @@ services:
       - hawk-bot
 
   hawk-shop:
-    image: ghcr.io/frc2713/hawk-shop:${HAWK_SHOP_TAG:-latest}
+    image: ${HAWK_SHOP_IMAGE:-ghcr.io/frc2713/hawk-shop:${HAWK_SHOP_TAG:-latest}}
     restart: unless-stopped
     environment:
       # --- Onshape OAuth (required) ---------------------------------------
@@ -55,7 +55,7 @@ services:
     # The image carries its own HEALTHCHECK against /api/health.
 
   hawk-mod:
-    image: ghcr.io/frc2713/hawk-mod:${HAWK_MOD_TAG:-latest}
+    image: ${HAWK_MOD_IMAGE:-ghcr.io/frc2713/hawk-mod:${HAWK_MOD_TAG:-latest}}
     restart: unless-stopped
     environment:
       # --- Slack app credentials (required) --------------------------------
@@ -83,9 +83,8 @@ services:
 
       # --- Roles -----------------------------------------------------------
       # Slack user groups that declare who is a student and who is an adult.
-      # Unset means the roster is maintained by CSV import instead.
-      STUDENT_USERGROUP: ${STUDENT_USERGROUP:-}
-      ADULT_USERGROUP: ${ADULT_USERGROUP:-}
+      # Roles come from the lifecycle sheet; these are groups admins may edit.
+      MANAGED_USERGROUPS: ${MANAGED_USERGROUPS:-}
 
       # --- Lifecycle sync (optional) ---------------------------------------
       # Reads the RHR User Lifecycle Management DB sheet. Its own service
@@ -100,8 +99,7 @@ services:
       TZ: ${TZ:-America/New_York}
       SWEEP_CRON: ${SWEEP_CRON:-0 3 * * *}
       BACKFILL_CRON: ${BACKFILL_CRON:-15 * * * *}
-      DIGEST_CRON: ${DIGEST_CRON:-0 8 * * *}
-      QUARTERLY_CRON: ${QUARTERLY_CRON:-0 9 1 1,4,7,10 *}
+      REPORT_TIME: ${REPORT_TIME:-}
     volumes:
       # Parental-consent records and, at LOG_MODE=full, minors' message text.
       # Back it up; read the data-handling notes in docs/deploy-linode.md.
@@ -109,7 +107,7 @@ services:
     # The image carries its own HEALTHCHECK against /health.
 
   hawk-bot:
-    image: ghcr.io/frc2713/hawk-bot:${HAWK_BOT_TAG:-latest}
+    image: ${HAWK_BOT_IMAGE:-ghcr.io/frc2713/hawk-bot:${HAWK_BOT_TAG:-latest}}
     restart: unless-stopped
     environment:
       # --- Slack app credentials (required) --------------------------------

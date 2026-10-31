@@ -1,0 +1,36 @@
+name: Propose release
+
+on:
+  repository_dispatch:
+    types: [release-published]
+
+permissions:
+  contents: read
+  actions: read
+
+# Serialize proposals so each starts from the most recent release manifest.
+concurrency:
+  group: release-proposals
+  cancel-in-progress: false
+
+jobs:
+  propose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/create-github-app-token@v1
+        id: app
+        with:
+          app-id: ${{ vars.HAWK_SUITE_APP_ID }}
+          private-key: ${{ secrets.HAWK_SUITE_APP_PRIVATE_KEY }}
+          owner: FRC2713
+          repositories: hawk_suite
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ steps.app.outputs.token }}
+      - uses: docker/setup-buildx-action@v3
+      - name: Validate publication and propose release
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+        run: python3 scripts/propose-release.py

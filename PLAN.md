@@ -132,3 +132,14 @@ All three apps publish images and this repo composes them. Remaining work:
    external ping service is the honest option.
 3. **Tag policy.** `latest` tracks each app's `main` — fine off-season,
    probably wrong during competition.
+
+## Reviewed release implementation
+
+The release pipeline is implemented in `.github/workflows/propose-release.yml`,
+`.github/workflows/deploy.yml`, `scripts/hawk-deploy` and `scripts/deploy.py`.
+Production uses digest entries in `releases/production.json`. The initial
+contract-0 entries are a historical baseline; promote all three contract-v1
+images and complete the migration in `docs/continuous-deployment.md` before
+running the new workflow. Database recovery remains an explicit maintenance
+operation. Host-local encrypted backups are automated; off-site copying,
+retention and external uptime monitoring remain operational work.

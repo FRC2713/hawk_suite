@@ -1,134 +1,60 @@
-#!/usr/bin/env bash
-# Host-side deploy, run by the Deploy workflow over SSH.
-#
-# This is installed to /usr/local/bin/hawk-deploy — deliberately OUTSIDE the
-# git checkout, and root-owned. The deploy key's forced command points at this
-# path, so a leaked key can only run this, not get a shell.
-#
-# Installing it is a one-time manual step precisely because it lives outside
-# the checkout: updating it requires host access, which is the trust boundary
-# this whole arrangement rests on. See docs/continuous-deployment.md.
-#
-# It reads an optional .env on stdin. That is how the workflow ships
-# credentials from GitHub Secrets without anyone SSHing in: the forced command
-# ignores arguments, so stdin is the only channel, and it stays inside the
-# encrypted session. Piping nothing keeps the existing .env.
-set -euo pipefail
+#!/usr/bin/env python3
+"""Restricted SSH entry point. Install root-owned outside the checkout.
 
-STACK_DIR=${STACK_DIR:-/opt/hawk_suite}
-cd "$STACK_DIR"
+The only input is a JSON deployment envelope on stdin. Fetch and authorize an
+exact main revision before executing that revision's deployment implementation.
+Changes to this small launcher require re-running provision-host.sh.
+"""
+import fcntl
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import signal
+import sys
 
-# ── .env from stdin ───────────────────────────────────────────────────
-# `timeout` so a human running `ssh deploy@host` without redirecting stdin
-# gets a deploy after 10s rather than an unexplained hang. Falling back to a
-# plain read matters: swallowing the incoming environment because a coreutils
-# binary is missing would deploy a stale .env and say nothing.
-if command -v timeout >/dev/null 2>&1; then
-  incoming=$(timeout 10 cat || true)
-else
-  incoming=$(cat || true)
-fi
 
-if [[ -n ${incoming//[[:space:]]/} ]]; then
-  echo "== received an environment on stdin"
+def main():
+    stack = Path(os.environ.get('STACK_DIR', '/opt/hawk_suite')).resolve()
+    state = stack / '.deploy'
+    state.mkdir(mode=0o700, exist_ok=True)
+    os.chmod(state, 0o700)
+    with (state / 'lock').open('w') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        # Limit input and reject malformed or ambiguous requests before mutation.
+        signal.alarm(15)
+        raw = sys.stdin.buffer.read(131073)
+        signal.alarm(0)
+        if len(raw) > 131072:
+            raise ValueError('deployment request too large')
+        request = json.loads(raw)
+        sha = request.get('suite_sha', '')
+        if not re.fullmatch(r'[a-f0-9]{40}', sha):
+            raise ValueError('invalid suite revision')
+        if not isinstance(request.get('env'), dict):
+            raise ValueError('missing deployment environment')
+        subprocess.run(['git', '-C', str(stack), 'fetch', '--quiet', 'origin', 'main'], check=True)
+        current = subprocess.check_output(['git', '-C', str(stack), 'rev-parse', 'origin/main'], text=True).strip()
+        if sha != current:
+            print('Stale deployment: approved revision is no longer main. Start a new Deploy run.', file=sys.stderr)
+            raise ValueError('stale revision')
+        target = state / 'releases' / sha
+        target.parent.mkdir(exist_ok=True)
+        if not target.exists():
+            subprocess.run(['git', '-C', str(stack), 'worktree', 'add', '--quiet', '--detach', str(target), sha], check=True)
+        # Never execute a modified staged checkout, including untracked code.
+        dirty = subprocess.check_output(['git', '-C', str(target), 'status', '--porcelain'], text=True).strip()
+        if dirty:
+            raise ValueError('staged release was modified; inspect it on the host')
+        subprocess.run([sys.executable, str(target / 'scripts/deploy.py'), str(stack), str(target)],
+                       input=json.dumps(request), text=True, check=True)
 
-  value_of() { # value_of <var> <text>
-    printf '%s\n' "$2" | sed -n "s/^$1=//p" | head -1
-  }
 
-  # Refusing beats writing a broken .env: compose would start the stack with
-  # blank credentials and both apps would crash-loop, which reads as an
-  # unrelated outage.
-  # HAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64 is on this list for the same
-  # reason as the encryption keys: hawk-bot's config schema has no default for
-  # it, so a blank one is a crash loop rather than a calendar that stays quiet.
-  # deploy.yml checks it too, but this is the end that actually writes .env,
-  # and it is the end a future second deploy path would also have to pass.
-  for required in DOMAIN TOKEN_ENCRYPTION_KEY HAWK_BOT_TOKEN_ENCRYPTION_KEY \
-                  HAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64; do
-    if [[ -z $(value_of "$required" "$incoming") ]]; then
-      echo "refusing: incoming environment has no $required" >&2
-      echo "the existing .env was left untouched; fix the GitHub secret" >&2
-      exit 1
-    fi
-  done
-
-  # TOKEN_ENCRYPTION_KEY is not recoverable and not rotatable in place —
-  # changing it makes every stored adult token undecryptable and forces the
-  # whole team to re-authorize. A deploy is never the right place for that to
-  # happen by accident, so it has to be done deliberately on the host.
-  #
-  # HAWK_BOT_TOKEN_ENCRYPTION_KEY deliberately gets no such comparison. It
-  # encrypts one workspace installation, and the cost of changing it is a
-  # single admin reinstalling hawk-bot — not a cost worth blocking a deploy
-  # over. It is still required above, so a blank one cannot crash-loop the
-  # container and read as an unrelated outage.
-  if [[ -f .env ]]; then
-    old_key=$(sed -n 's/^TOKEN_ENCRYPTION_KEY=//p' .env | head -1)
-    new_key=$(value_of TOKEN_ENCRYPTION_KEY "$incoming")
-    if [[ -n $old_key && $old_key != "$new_key" ]]; then
-      echo "refusing: TOKEN_ENCRYPTION_KEY differs from the one on this host" >&2
-      echo "every enrolled adult would have to re-authorize, and previously" >&2
-      echo "stored tokens would be unreadable. If this is intended, change it" >&2
-      echo "on the host by hand. Otherwise fix the GitHub secret to match." >&2
-      exit 1
-    fi
-    cp -p .env .env.bak
-  fi
-
-  umask 077
-  printf '%s\n' "$incoming" > .env
-  chmod 600 .env
-else
-  echo "== nothing on stdin, keeping the existing .env"
-  [[ -f .env ]] || { echo "no .env on this host and none supplied" >&2; exit 1; }
-fi
-
-# ── the deploy ────────────────────────────────────────────────────────
-echo "== fetching $STACK_DIR"
-git fetch --quiet origin main
-# .env is untracked, so a hard reset leaves it alone.
-git reset --hard --quiet origin/main
-git --no-pager log --oneline -1
-
-echo "== pulling images"
-docker compose pull --quiet
-
-echo "== restarting"
-docker compose up -d --remove-orphans
-docker image prune -f >/dev/null
-
-# The Caddyfile is bind-mounted, so editing it does not change the container
-# spec and `up -d` has no reason to recreate Caddy — it keeps serving the config
-# it parsed at startup. Routing changes would deploy green and do nothing.
-# Reload explicitly; fall back to a restart if the admin API is unavailable.
-echo "== reloading caddy config"
-if docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile 2>/dev/null; then
-  echo "  reloaded"
-else
-  echo "  reload failed, restarting caddy"
-  docker compose restart caddy
-fi
-
-echo "== waiting for health"
-# Compose has no "wait until healthy" that works on an already-running stack,
-# so poll. Both images declare a HEALTHCHECK; anything without one reports as
-# empty and is treated as up.
-deadline=$((SECONDS + 120))
-while :; do
-  unhealthy=$(docker compose ps --format '{{.Service}} {{.Health}}' \
-              | awk '$2 != "" && $2 != "healthy" {print $1}' || true)
-  [[ -z $unhealthy ]] && break
-  if ((SECONDS >= deadline)); then
-    echo "still not healthy after 120s: $unhealthy" >&2
-    docker compose ps
-    # Word splitting is the point: $unhealthy is a list of service names.
-    # shellcheck disable=SC2086
-    docker compose logs --tail=40 $unhealthy >&2
-    exit 1
-  fi
-  sleep 5
-done
-
-docker compose ps
-echo "== deployed"
+if __name__ == '__main__':
+    try:
+        main()
+    except (ValueError, OSError, subprocess.CalledProcessError):
+        # Never print exceptions carrying request/environment values.
+        print('Deploy refused or failed. Check the revision, host lock and deployment diagnostics.', file=sys.stderr)
+        sys.exit(1)
