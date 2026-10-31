@@ -1,3 +1,7 @@
+> Production releases use [continuous-deployment.md](continuous-deployment.md).
+> The interactive setup and on-host update commands below are the alternative
+> installation path. Reviewed-release hosts must use the Deploy workflow.
+
 # Deploying hawk_suite to Linode
 
 One Linode, one Docker Compose stack, four hostnames. About twenty minutes,

@@ -24,7 +24,7 @@ step() { printf '\n\033[1m== %s\033[0m\n' "$1"; }
 step "Packages"
 if ! command -v docker >/dev/null 2>&1; then
   apt-get update -qq
-  apt-get install -y -qq ca-certificates curl git openssl ufw
+  apt-get install -y -qq ca-certificates curl git openssl ufw python3
   install -m 0755 -d /etc/apt/keyrings
   curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
   chmod a+r /etc/apt/keyrings/docker.asc
@@ -36,7 +36,7 @@ if ! command -v docker >/dev/null 2>&1; then
   systemctl enable --now docker
   echo "installed Docker $(docker --version)"
 else
-  apt-get install -y -qq git openssl ufw >/dev/null
+  apt-get install -y -qq git openssl ufw python3 >/dev/null
   echo "Docker already present: $(docker --version)"
 fi
 
@@ -64,25 +64,14 @@ fi
 chown -R "${DEPLOY_USER}:${DEPLOY_USER}" "$STACK_DIR"
 
 step "Deploy script"
-# A root-owned stub the deploy user cannot rewrite, which execs the real script
-# from the checkout.
-#
-# The first version of this copied the script itself, so that a merge could not
-# change what the forced command runs. That protection was illusory: a merge can
-# already alter docker-compose.yml to mount anything, so anyone who can merge
-# can run anything on this host regardless. Branch protection is the real
-# control, as docs/continuous-deployment.md says.
-#
-# What copying did buy was a trap — changes to scripts/hawk-deploy silently did
-# not deploy, and the host quietly ran an old version. Stubbing keeps the file
-# root-owned while letting the logic ship through git like everything else.
-cat > /usr/local/bin/hawk-deploy <<STUB
-#!/usr/bin/env bash
-exec ${STACK_DIR}/scripts/hawk-deploy "\$@"
-STUB
-chown root:root /usr/local/bin/hawk-deploy
-chmod 755 /usr/local/bin/hawk-deploy
-echo "installed /usr/local/bin/hawk-deploy (stub -> ${STACK_DIR}/scripts/hawk-deploy)"
+# Root-owned launcher authorizes the exact main revision and takes a host lock.
+# Reviewed runtime logic lives in the selected immutable release worktree.
+install -o root -g root -m 755 "$STACK_DIR/scripts/hawk-deploy" /usr/local/bin/hawk-deploy
+python3 --version
+docker compose up --help | grep -q -- '--wait-timeout' || {
+  echo 'Update the Docker Compose plugin: --wait-timeout support is required' >&2
+  exit 1
+}
 
 step "Deploy key"
 install -d -m 700 -o "$DEPLOY_USER" -g "$DEPLOY_USER" "/home/${DEPLOY_USER}/.ssh"

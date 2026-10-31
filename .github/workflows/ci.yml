@@ -5,140 +5,41 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Shell scripts parse and lint clean
+      - name: Shell and deployment transaction checks
         run: |
-          shellcheck setup.sh update.sh scripts/hawk-deploy scripts/provision-host.sh
-
-      - name: Compose file resolves with a filled-in environment
+          shellcheck setup.sh update.sh scripts/send-deploy.sh scripts/verify-https.sh scripts/provision-host.sh
+          python3 -m unittest discover -s test -v
+          python3 scripts/release.py --env > /tmp/release.env
+      - name: Validate resolved configuration and credential separation
         run: |
-          cat > .env <<'EOF'
+          cat > /tmp/fixture.env <<'EOF'
           DOMAIN=ci.example.org
-          ONSHAPE_CLIENT_ID=ci
-          ONSHAPE_CLIENT_SECRET=ci
-          SLACK_SIGNING_SECRET=ci
-          SLACK_CLIENT_ID=ci
-          SLACK_CLIENT_SECRET=ci
-          SLACK_STATE_SECRET=ci
-          ALERT_CHANNEL_ID=C0000000000
-          TOKEN_ENCRYPTION_KEY=ci
-          HAWK_BOT_SLACK_SIGNING_SECRET=ci-bot
-          HAWK_BOT_SLACK_CLIENT_ID=ci-bot
-          HAWK_BOT_SLACK_CLIENT_SECRET=ci-bot
-          HAWK_BOT_SLACK_STATE_SECRET=ci-bot
-          HAWK_BOT_TOKEN_ENCRYPTION_KEY=ci-bot
-          HAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64=ci-bot-google-key
-          HAWK_MOD_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64=ci-mod-google-key
+          SLACK_SIGNING_SECRET=mod-secret
+          TOKEN_ENCRYPTION_KEY=mod-key
+          HAWK_BOT_SLACK_SIGNING_SECRET=bot-secret
+          HAWK_BOT_TOKEN_ENCRYPTION_KEY=bot-key
+          HAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64=bot-google
+          HAWK_MOD_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64=mod-google
           LIFECYCLE_SHEET_ID=ci-sheet
+          REPORT_TIME=09:15
+          MANAGED_USERGROUPS=S12345
           EOF
-          docker compose config > /tmp/resolved.yml
-          # The derived URLs are the thing most likely to break silently.
-          grep -q 'APP_URL: https://shop.ci.example.org' /tmp/resolved.yml
-          grep -q 'PUBLIC_URL: https://mod.ci.example.org' /tmp/resolved.yml
-          grep -q 'PUBLIC_URL: https://bot.ci.example.org' /tmp/resolved.yml
-          grep -q 'ONSHAPE_REDIRECT_URI: https://shop.ci.example.org/auth/onshape/callback' /tmp/resolved.yml
-
-          # Two Slack apps now share one .env, and crossing them is a subtle
-          # failure: hawk-bot would come up holding hawk-mod's credentials and
-          # answer as the wrong app, which looks like a Slack problem.
-          docker compose config --format json | python3 -c '
-          import json, sys
-          env = {k: v.get("environment", {}) for k, v in json.load(sys.stdin)["services"].items()}
-          mod, bot = env["hawk-mod"], env["hawk-bot"]
-          assert mod["SLACK_SIGNING_SECRET"] == "ci", mod["SLACK_SIGNING_SECRET"]
-          assert bot["SLACK_SIGNING_SECRET"] == "ci-bot", bot["SLACK_SIGNING_SECRET"]
-          assert mod["TOKEN_ENCRYPTION_KEY"] == "ci", mod["TOKEN_ENCRYPTION_KEY"]
-          assert bot["TOKEN_ENCRYPTION_KEY"] == "ci-bot", bot["TOKEN_ENCRYPTION_KEY"]
-
-          # The Google credential is prefixed in .env and unprefixed in the
-          # container, like the Slack ones. It reached the container empty once
-          # already — hawk-bot then crash-looped, which reads as a hawk-bot bug
-          # rather than as a variable this repo never passed through.
-          assert bot["GOOGLE_SERVICE_ACCOUNT_KEY_BASE64"] == "ci-bot-google-key", \
-              bot["GOOGLE_SERVICE_ACCOUNT_KEY_BASE64"]
-          # hawk-mod now has a Google key of its own, and that one can read
-          # the lifecycle sheet — the row of every student. Crossing them would hand
-          # hawk-bot student data, or leave hawk-mod reading calendars.
-          assert mod["GOOGLE_SERVICE_ACCOUNT_KEY_BASE64"] == "ci-mod-google-key", \
-              mod["GOOGLE_SERVICE_ACCOUNT_KEY_BASE64"]
-          assert mod["LIFECYCLE_SHEET_ID"] == "ci-sheet", mod["LIFECYCLE_SHEET_ID"]
-          assert "LIFECYCLE_SHEET_ID" not in bot, \
-              "hawk-bot has no business knowing where the lifecycle sheet is"
-          '
-
-      - name: A blank DOMAIN is refused
-        run: |
-          printf 'DOMAIN=\n' > .env
-          if docker compose config >/dev/null 2>&1; then
-            echo "compose accepted a blank DOMAIN — the guard in docker-compose.yml is gone"
-            exit 1
+          docker compose --env-file /tmp/fixture.env --env-file /tmp/release.env config --format json > /tmp/resolved.json
+          python3 test/check_compose.py /tmp/resolved.json
+          if DOMAIN='' docker compose config >/dev/null 2>&1; then
+            echo 'Blank DOMAIN accepted'; exit 1
           fi
-
-      - name: cloud-init.yaml is valid YAML
+      - name: Validate Caddy and cloud-init
         run: |
           python3 -c "import yaml; yaml.safe_load(open('cloud-init.yaml'))"
-
-      - name: Caddyfile is valid
-        run: |
-          docker run --rm -e DOMAIN=ci.example.org \
-            -v "$PWD/Caddyfile:/etc/caddy/Caddyfile:ro" \
-            caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
-
-      - name: hawk-deploy refuses a bad environment
-        run: |
-          T=$(mktemp -d)
-          run() { STACK_DIR="$T" bash scripts/hawk-deploy 2>&1 || true; }
-
-          # A blank or missing credential must never reach .env — the stack
-          # would come up crash-looping and read as an unrelated outage.
-          printf 'DOMAIN=x.org\n' | run | grep -q 'no TOKEN_ENCRYPTION_KEY'
-          printf 'TOKEN_ENCRYPTION_KEY=k\n' | run | grep -q 'no DOMAIN'
-          printf 'DOMAIN=x.org\nTOKEN_ENCRYPTION_KEY=k\n' | run \
-            | grep -q 'no HAWK_BOT_TOKEN_ENCRYPTION_KEY'
-          printf 'DOMAIN=x.org\nTOKEN_ENCRYPTION_KEY=k\nHAWK_BOT_TOKEN_ENCRYPTION_KEY=b\n' | run \
-            | grep -q 'no HAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64'
-
-          # Everything below is about how a *complete* environment is handled,
-          # so each one carries the full required set.
-          complete() { # complete <token-key> <bot-token-key>
-            printf 'DOMAIN=x.org\nTOKEN_ENCRYPTION_KEY=%s\nHAWK_BOT_TOKEN_ENCRYPTION_KEY=%s\nHAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64=g\n' "$1" "$2"
-          }
-
-          # Changing TOKEN_ENCRYPTION_KEY forces every adult to re-authorize
-          # and orphans stored tokens. It must never happen via a deploy.
-          complete ORIGINAL b > "$T/.env"
-          complete CHANGED b | run | grep -q 'differs from the one on this host'
-          grep -q 'TOKEN_ENCRYPTION_KEY=ORIGINAL' "$T/.env"
-
-          # hawk-bot's key is deliberately NOT compared — rotating it costs one
-          # reinstall, and refusing a deploy over that would be the wrong
-          # trade. If this ever starts refusing, the two keys got conflated.
-          complete SAME ORIGINAL > "$T/.env"
-          out=$(complete SAME ROTATED | run)
-          case "$out" in
-            *"differs from the one on this host"*)
-              echo "hawk-deploy refused a hawk-bot key rotation"; exit 1 ;;
-          esac
-          grep -q 'HAWK_BOT_TOKEN_ENCRYPTION_KEY=ROTATED' "$T/.env"
-
-          # The Google credential is rotatable too, and for the same reason:
-          # it is a read-only key on a service account, and re-issuing one is
-          # a normal thing to do. Nothing stored depends on it.
-          complete SAME SAME > "$T/.env"
-          printf 'DOMAIN=x.org\nTOKEN_ENCRYPTION_KEY=SAME\nHAWK_BOT_TOKEN_ENCRYPTION_KEY=SAME\nHAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64=REISSUED\n' | run >/dev/null
-          grep -q 'HAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64=REISSUED' "$T/.env"
-
-      - name: Every variable setup.sh writes is documented in .env.example
-        run: |
-          missing=0
-          # Variable names on the left of '=' inside setup.sh's heredoc.
-          for var in $(sed -n '/^cat > .env <<EOF$/,/^EOF$/p' setup.sh \
-                       | grep -oE '^[A-Z_]+=' | tr -d '='); do
-            grep -qE "^#? *${var}=" .env.example || { echo "undocumented: $var"; missing=1; }
-          done
-          exit $missing
+          docker run --rm -e DOMAIN=ci.example.org -v "$PWD/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+      - name: Exercise encrypted backup and recovery with disposable volumes
+        run: python3 test/backup-integration.py

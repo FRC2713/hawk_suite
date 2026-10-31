@@ -1,194 +1,91 @@
-# Continuous deployment
+# Reviewed releases
 
-Every deploy runs from GitHub Actions. Nobody SSHes into the host — not to
-ship a change, not to rotate a credential, not to update the stack.
+Production ships the three image digests in `releases/production.json`, together with an exact suite commit. The release proposal and the deployment approval are separate reviews. Merging an app change publishes a tested image and asks the suite to propose that image. Merging the suite PR does not deploy it.
 
-That requires one bootstrap on the host, done once by whoever owns the server.
-Everything after that is a button in the Actions tab.
+```text
+app main → reusable CI → build candidate → fresh and upgrade smoke tests
+  → publish exact candidate → propose suite release PR
+  → review and merge → Run Deploy on main → production approval
+  → validate and pull → encrypted backup → apply → verify → receipt
+```
 
-## What the host owner does (once)
+## One-time migration from the old workflow
 
-SSH into the server as root and run:
+1. Merge this suite change first. Its initial release file records the existing published digests with `contract: 0`. Those are a baseline, not approved candidates for the new deployment protocol. Deploy refuses them before touching the running stack.
+2. Create a GitHub App installed on `FRC2713/hawk_suite`, with Contents write and Pull requests write. Set `HAWK_SUITE_APP_ID` as an Actions variable and `HAWK_SUITE_APP_PRIVATE_KEY` as a secret in the suite and all three app repositories. The automation requests short-lived installation tokens restricted to the suite. The receiver reads public app workflow runs to verify publication. If these repos become private, grant the receiver Actions read and Contents read on those repos using a separate read-only installation.
+3. Merge the three app workflow changes. Each publisher verifies, builds and tests an image, then opens a release PR. Merge all three proposals before the first new Deploy run. If a proposal job fails, retry that job, not the completed publisher.
+4. Generate `BACKUP_ENCRYPTION_KEY` once with `openssl rand -base64 32`. Save it as a suite production secret and retain a copy in the password manager. It is separate from both apps' encryption keys. Keep old backup keys if rotating it.
+5. The host owner re-runs `scripts/provision-host.sh` once from the new suite revision to replace the old forced-command launcher. Existing SSH keys and volumes are preserved. The new transport is JSON; the legacy launcher cannot process it. The launcher remains root-owned at `/usr/local/bin/hawk-deploy` and only authorizes an exact revision of main. Runtime deployment code comes from that reviewed revision's worktree.
+6. Confirm the `production` environment has required reviewers, permits only main, and protects its secrets. Enable required CI and narrow merge rights on the suite. Run Deploy from main, inspect the proposed release, then approve it.
+
+The source does not configure repository protection or create reviewer rules. Configure those in GitHub before rollout. An environment name in YAML alone does not require approval.
+
+## Secrets and variables
+
+Retain existing credentials. The complete production secret names are:
+
+| Secret | Source |
+| --- | --- |
+| `DEPLOY_SSH_KEY` | Host provisioning output, PEM or single-line base64 |
+| `DEPLOY_KNOWN_HOSTS` | Verified host public key entry |
+| `DEPLOY_HOST`, `DEPLOY_USER` | Server address and `deploy` |
+| `ONSHAPE_CLIENT_ID`, `ONSHAPE_CLIENT_SECRET` | Onshape OAuth application |
+| `SLACK_SIGNING_SECRET`, `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`, `SLACK_STATE_SECRET` | hawk-mod's Slack application |
+| `TOKEN_ENCRYPTION_KEY` | Existing hawk-mod encryption key; do not regenerate |
+| `ALERT_CHANNEL_ID` | hawk-mod findings channel ID |
+| `HAWK_MOD_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64` | Optional lifecycle integration, separate Google account |
+| `HAWK_BOT_SLACK_SIGNING_SECRET`, `HAWK_BOT_SLACK_CLIENT_ID`, `HAWK_BOT_SLACK_CLIENT_SECRET`, `HAWK_BOT_SLACK_STATE_SECRET` | hawk-bot's separate Slack application |
+| `HAWK_BOT_TOKEN_ENCRYPTION_KEY` | hawk-bot's encryption key |
+| `HAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64` | Required hawk-bot Calendar service account key |
+| `BACKUP_ENCRYPTION_KEY` | Separate backup key, minimum 32 characters |
+| `HAWK_SUITE_APP_PRIVATE_KEY` | Release automation App, repository scope |
+
+Variables are `DOMAIN`, `LOG_MODE`, `TZ`, `MANAGED_USERGROUPS`, `REPORT_TIME`, `LIFECYCLE_SHEET_ID`, `ONSHAPE_IFRAME_EMBED` and `HAWK_SUITE_APP_ID`. Defaults are defined in the workflow. `REPORT_TIME` is an HH:MM seed, not cron; the saved `/hawkmod config` value wins. `MANAGED_USERGROUPS` is the administrator-editable group allowlist. Student and adult roles come from the lifecycle sheet. The old `STUDENT_USERGROUP`, `ADULT_USERGROUP`, `DIGEST_CRON` and `QUARTERLY_CRON` knobs are retired.
+
+Image tags and image overrides are not production variables. Review image changes through the release file. The interactive setup path retains tag aliases for installations without GitHub deployment.
+
+## What deployment does
+
+The plan job records `GITHUB_SHA` and shows the release before the production job is approved. The host rejects the request if main has moved while approval was pending. Start a new run and review the new plan. This also prevents a queued older request from overwriting a newer release.
+
+The root-owned launcher holds a host lock and stages the exact commit in `.deploy/releases/<sha>`. It does not hard-reset or rewrite the active checkout. Staged worktrees are checked for modifications before execution. Deployment writes private staged configuration outside those worktrees, resolves Compose, pulls all images, checks their revision labels, validates each image's configuration contract without production volumes or network, and validates Caddy.
+
+Preflight failure removes staged secret files and leaves active configuration unchanged. `TOKEN_ENCRYPTION_KEY` must match the existing deployment. hawk-bot's encryption key and Google key remain rotatable.
+
+Before applying migrations, deployment takes SQLite backup-API snapshots using the old running containers and copies hawk-shop uploads. It encrypts the archive using AES-256-CBC with PBKDF2 and authenticates the ciphertext with a separate derived HMAC key. Plaintext temporary files are removed on exit. Backups remain host-local under `.deploy/backups`; copy encrypted archives and their `.hmac` files off-site with an appropriate retention policy. This pipeline does not configure an off-site storage account. Uploaded files are copied while the old app is running; use a maintenance window when upload-level point-in-time consistency is required.
+
+Compose waits for readiness. Explicit checks then require all four expected services to be running, app health to be healthy, and each running image ID to match the release digest. Caddy reload and public HTTPS checks must succeed. Successful deployment atomically writes `.deploy/current.json`, retains `.deploy/previous.json`, and returns a secret-free receipt to Actions. There is no automatic image pruning during deployment.
+
+## Recovery
+
+A failure after apply records `.deploy/failed.json` with its staged configuration, backup identifier and previous release. Database migrations may already have run. The pipeline deliberately does not restore an old database or start an older image automatically.
+
+For a code regression with a backward-compatible schema, open a suite PR restoring the previous digest entries, merge it, and run Deploy on the new main revision. Do not run an old suite revision directly. The previous images remain available locally.
+
+For schema recovery, stop writes during a maintenance window. Copy the authenticated encrypted archive and HMAC sidecar to a trusted machine. Read the backup key without placing it in a command line:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/FRC2713/hawk_suite/main/scripts/provision-host.sh | sudo bash
+read -rs BACKUP_ENCRYPTION_KEY
+export BACKUP_ENCRYPTION_KEY
+python3 scripts/restore-backup.py snapshot.tar.gz.enc recovered-snapshot
+unset BACKUP_ENCRYPTION_KEY
 ```
 
-[`provision-host.sh`](../scripts/provision-host.sh) installs Docker, creates a
-`deploy` user with no sudo, clones this repo to `/opt/hawk_suite`, installs the
-deploy script to `/usr/local/bin/hawk-deploy`, generates an SSH key restricted
-to running only that script, and sets `ufw` to 22/80/443. It is safe to re-run;
-an existing key is left alone.
+The restore helper verifies authentication and decrypts into a new review directory. It never writes production volumes. Verify SQLite integrity, match the snapshot to the appropriate image, account for writes after the snapshot, and have the host owner restore the selected volumes while the services are stopped. Retain hawk-mod's original token encryption key with the restored data.
 
-It finishes by printing two values. **Those are the only things that leave the
-machine**, and they go straight into GitHub:
+## Setup diagnostics
 
-| Printed | Goes into |
-| --- | --- |
-| `DEPLOY_SSH_KEY` (the private key) | repository secret |
-| `DEPLOY_KNOWN_HOSTS` | repository secret |
+From a checkout:
 
-Then delete the private key from the host, as the script instructs — GitHub is
-where it lives now. No credentials for either app are ever typed on the server.
-
-**Also check the Linode Cloud Firewall.** An instance created with the
-*Default* policy permits inbound SSH only, which silently breaks Let's
-Encrypt: the HTTP-01 challenge never arrives and the symptom reads as a DNS
-problem. `ufw` on the host is a separate layer and will not help.
-
-That is the entire host-side job.
-
-## What goes into GitHub
-
-Settings → Secrets and variables → Actions.
-
-### Secrets
-
-| Secret | Where it comes from |
-| --- | --- |
-| `DEPLOY_SSH_KEY` | printed by `provision-host.sh` |
-| `DEPLOY_KNOWN_HOSTS` | printed by `provision-host.sh` |
-| `DEPLOY_HOST` | the server's IP or hostname |
-| `DEPLOY_USER` | `deploy` |
-| `ONSHAPE_CLIENT_ID` | Onshape OAuth app |
-| `ONSHAPE_CLIENT_SECRET` | Onshape OAuth app |
-| `SLACK_SIGNING_SECRET` | Slack app → Basic Information |
-| `SLACK_CLIENT_ID` | Slack app → Basic Information |
-| `SLACK_CLIENT_SECRET` | Slack app → Basic Information |
-| `SLACK_STATE_SECRET` | `openssl rand -hex 32` |
-| `ALERT_CHANNEL_ID` | the private findings channel's `C…` ID |
-| `TOKEN_ENCRYPTION_KEY` | `openssl rand -base64 32` — **see below** |
-| `HAWK_BOT_SLACK_SIGNING_SECRET` | hawk-bot's **own** Slack app → Basic Information |
-| `HAWK_BOT_SLACK_CLIENT_ID` | hawk-bot's Slack app → Basic Information |
-| `HAWK_BOT_SLACK_CLIENT_SECRET` | hawk-bot's Slack app → Basic Information |
-| `HAWK_BOT_SLACK_STATE_SECRET` | `openssl rand -hex 32` |
-| `HAWK_BOT_TOKEN_ENCRYPTION_KEY` | `openssl rand -base64 32` |
-| `HAWK_MOD_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64` | optional — hawk-mod's lifecycle sync; see hawk-mod's `docs/google-setup.md` |
-
-The `HAWK_BOT_*` secrets come from a **second Slack app**, not from hawk-mod's.
-Two apps in one workspace, and crossing their credentials makes hawk-bot answer
-as the wrong app — which presents as Slack silently ignoring `/hawkbot`.
-
-### Variables
-
-Non-secret settings are repository *variables*, so they stay readable and their
-changes are visible:
-
-| Variable | Default if unset |
-| --- | --- |
-| `DOMAIN` | none — the deploy fails without it |
-| `HAWK_SHOP_TAG`, `HAWK_MOD_TAG`, `HAWK_BOT_TAG` | `latest` |
-| `LOG_MODE` | `full` |
-| `TZ` | `America/New_York` |
-| `STUDENT_USERGROUP`, `ADULT_USERGROUP` | empty (roster by CSV) |
-| `LIFECYCLE_SHEET_ID` | empty (hawk-mod's lifecycle sync off) |
-| `ONSHAPE_IFRAME_EMBED` | `false` |
-
-Changing the domain is now editing the `DOMAIN` variable and re-running the
-workflow — plus the dashboard edits in
-[deploy-linode.md](deploy-linode.md#changing-the-domain-later).
-
-### TOKEN_ENCRYPTION_KEY is generated once, ever
-
-Generate it with `openssl rand -base64 32`, store it as a secret, and keep a
-copy in the team's password manager. It encrypts adults' Slack tokens at rest.
-
-Changing it makes every stored token undecryptable and forces the whole team to
-re-authorize. Because the workflow now writes `.env` on every deploy, a wrong
-value here would do that silently — so `hawk-deploy` refuses any deploy whose
-incoming key differs from the one already on the host, and leaves `.env`
-untouched. CI tests that refusal. If you ever genuinely need to rotate it, do
-it on the host by hand and accept the re-enrollment.
-
-`HAWK_BOT_TOKEN_ENCRYPTION_KEY` is a different animal despite the similar name.
-It encrypts one workspace installation, so losing or changing it costs a single
-admin reinstall of hawk-bot. `hawk-deploy` requires it to be present — a blank
-one crash-loops the container, which reads as an unrelated outage — but
-deliberately does not compare it against the host's. CI tests that it stays
-rotatable, so the two do not get conflated later.
-
-### The approval gate
-
-Settings → Environments → **New environment** → `production`, then check
-**Required reviewers** and add the leads.
-
-This is what keeps a merge from being a deploy. Every deployment becomes a
-deliberate act by a named person, recorded in the Actions log.
-
-## How a deploy works
-
-Actions → **Deploy** → *Run workflow*. After a reviewer approves:
-
-1. The job renders `.env` from the secrets and variables above.
-2. It connects as `deploy` and pipes that `.env` over the SSH session. The
-   key's forced command ignores arguments, so stdin is the only channel, and
-   the credentials never touch a command line or a disk outside the runner.
-3. On the host, `hawk-deploy` validates the incoming environment, writes
-   `.env` at mode 600, fast-forwards the checkout to `origin/main`, pulls
-   images, restarts, and polls until every container reports healthy — failing
-   the run with logs if any doesn't.
-
-To deploy automatically on every merge to `main`, uncomment the `push` trigger
-in [`deploy.yml`](../.github/workflows/deploy.yml). Reviewers still gate it.
-Reasonable off-season; think hard before competition season.
-
-### From the app repos
-
-A merge in `hawk-shop`, `hawk-mod`, or `hawk-bot` publishes an image but does
-not deploy it. To have it ask for one, add a step to that repo's `docker.yml`:
-
-```yaml
-      - name: Ask hawk_suite to deploy
-        run: gh api repos/FRC2713/hawk_suite/dispatches -f event_type=deploy
-        env:
-          GH_TOKEN: ${{ secrets.HAWK_SUITE_DISPATCH_TOKEN }}
+```bash
+python3 scripts/doctor.py --domain redhawkrobotics.org
+python3 scripts/doctor.py --domain example.org --manifests /tmp/slack-manifests
 ```
 
-A fine-grained PAT with `actions: write` on `hawk_suite` is enough. The
-`production` environment still requires approval.
+Doctor checks DNS, HTTPS, expected app revisions and access to every pinned image. It reports Slack apps waiting for installation and can produce domain-specific Slack manifests from the pinned source revisions. It does not read production secrets. Run `/hawkbot calendar` and `/hawkmod lifecycle plan` as an administrator to check Google access through the actual integration. Health means the runtime and database work, not that third-party authorization is complete.
 
-## The trust model
+## Trust and permissions
 
-Deployment means *the host runs what `main` says*. `docker-compose.yml` can
-mount any host path; `Caddyfile` can route anywhere. So:
+A repository-dispatch request is a release suggestion, not a deployment authorization. The receiver allowlists apps, validates revision and digest formats, checks a successful main publisher job, rejects superseded source revisions, verifies the SHA tag and image revision, and opens a PR changing only that app's entry. `repository_dispatch` requires Contents write, not Actions write.
 
-> **Anyone who can merge to `hawk_suite`'s `main` can run code on the machine
-> that stores students' DM content.**
-
-The restricted deploy user and forced command do not change that — they shrink
-a *leaked GitHub secret* from "shell on the box" to "triggers a deploy". They
-do not contain a merge. Branch protection and narrow merge rights are the
-actual control.
-
-That asymmetry is what makes it safe to open development up:
-
-| Repo | Who contributes | What merging gets you |
-| --- | --- | --- |
-| `hawk-shop`, `hawk-mod`, `hawk-bot` | anyone — students, mentors | a container **image** |
-| `hawk_suite` | anyone, via PR | **code execution on the host** |
-
-Students can do essentially all the interesting work in the app repos, review
-each other's PRs, and watch it ship, without anyone handing them root on a
-machine holding minors' data. Both app repos have their own compose file for
-laptop development; nobody needs the server to write code.
-
-## When it fails
-
-- **`Permission denied (publickey)`** — re-run `provision-host.sh`; it is
-  idempotent and will repair `authorized_keys`.
-- **`Host key verification failed`** — the server was rebuilt and its host key
-  changed. Re-run `ssh-keyscan <host>` and update `DEPLOY_KNOWN_HOSTS`.
-- **`refusing: incoming environment has no …`** — that secret is unset or empty
-  in GitHub. The host's `.env` was left untouched.
-- **`refusing: TOKEN_ENCRYPTION_KEY differs …`** — the secret does not match
-  what the host already has. Fix the secret; do not "fix" the host.
-- **`still not healthy after 120s`** — images pulled but an app won't start.
-  The run prints the last 40 log lines of the unhealthy service. hawk-mod and
-  hawk-bot each name the exact environment variables that failed validation.
-- **`denied` / `unauthorized` on pull** — the GHCR packages are private and the
-  host has no credential. Make them public, or `sudo -u deploy docker login
-  ghcr.io` once.
-
-Rolling back is a deploy of an older state: set the `HAWK_SHOP_TAG` /
-`HAWK_MOD_TAG` / `HAWK_BOT_TAG` variables to the previous versions and re-run,
-or revert the commit on `main` and deploy that.
+Anyone who can merge suite configuration can cause code execution on the host. Compose can mount host paths, and the deploy account's Docker membership is root-equivalent. Branch protection and narrow merge rights remain essential. Application-image code can access its own app's production state, so app CI and review remain part of the trust model too. Production approval remains in place.

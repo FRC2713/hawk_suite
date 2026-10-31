@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "apps": {
+    "hawk-shop": {
+      "digest": "sha256:a7b591e0a8f2b7b6f8031517bdcd26aa4d07c3b5e0b58df061537e817555a8a1",
+      "revision": "59fc21726cda6a520adff123bb26b7c319952655",
+      "contract": 0
+    },
+    "hawk-mod": {
+      "digest": "sha256:6283ace20e265fca17f016c836b125f3c2db2a04c545428d0a4c860798102882",
+      "revision": "8c6e3575dd31e3b9336fe0b46146992720717056",
+      "contract": 0
+    },
+    "hawk-bot": {
+      "digest": "sha256:d4f743878950697de7ee3b502b7199491070f5d43aa4ff9586adfddfa7766917",
+      "revision": "8978fcf4b93dfbd438cac61532408764eeff40c3",
+      "contract": 0
+    }
+  }
+}

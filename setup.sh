@@ -120,8 +120,8 @@ PUBLIC_URL=https://mod.${DOMAIN}
 ALERT_CHANNEL_ID=${ALERT_CHANNEL_ID}
 TOKEN_ENCRYPTION_KEY=${TOKEN_ENCRYPTION_KEY}
 LOG_MODE=${LOG_MODE}
-STUDENT_USERGROUP=
-ADULT_USERGROUP=
+MANAGED_USERGROUPS=
+REPORT_TIME=
 TZ=${TZ}
 
 # ── hawk-bot ─────────────────────────────────────────────────────────
@@ -184,7 +184,7 @@ docker compose up -d
 
 echo
 echo "Up. Give Caddy a minute to get certificates, then:"
-echo "  Portal:    https://${DOMAIN}"
+echo "  Portal:    https://apps.${DOMAIN}"
 echo "  hawk-shop: https://shop.${DOMAIN}"
 echo "  hawk-mod:  https://mod.${DOMAIN}/health"
 echo "  hawk-bot:  https://bot.${DOMAIN}/health"

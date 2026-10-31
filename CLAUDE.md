@@ -30,24 +30,17 @@ container, because both apps read the same names. Crossing them is the
 subtlest failure this stack has: hawk-bot would answer as hawk-mod's app and
 Slack would appear to be ignoring it. CI asserts they stay distinct.
 
-## Commands
+## Verification
 
-```sh
-./setup.sh          # First run: prompts for domain + credentials, generates both Slack
-                    # apps' secrets, writes .env (600), optional ghcr login, brings the
-                    # stack up. Refuses to run if .env exists (edit .env directly).
-./update.sh         # docker compose pull && up -d && image prune -f && ps
-docker compose logs -f <service>   # services: caddy, hawk-shop, hawk-mod, hawk-bot
-docker compose config              # validate compose + .env interpolation
-shellcheck setup.sh update.sh scripts/hawk-deploy
-```
+Run `python3 -m unittest discover -s test -v`, shellcheck on the shell scripts,
+and the fixture Compose assertions in `.github/workflows/ci.yml`. Run
+`python3 test/backup-integration.py` when changing backups or recovery; it uses
+only disposable volumes and a unique project label. Validate Caddy and workflow
+syntax before publishing changes.
 
-No build or unit tests — this repo ships config, not compiled code. CI
-(`.github/workflows/ci.yml`) is the test suite: shellcheck, `docker compose
-config` against a fixture `.env` with assertions on the derived URLs, the
-blank-`DOMAIN` guard, cloud-init YAML validity, and a check that every variable
-`setup.sh` writes appears in `.env.example`. Run those locally before pushing;
-they are all a few seconds.
+`./setup.sh` and `./update.sh` are the interactive installation path.
+Production uses the reviewed Deploy workflow. `python3 scripts/doctor.py
+--domain <domain>` performs read-only routing, registry and version checks.
 
 ## Architecture
 
@@ -100,47 +93,29 @@ Don't reintroduce offline/pit mode as a supported path.
 
 ## Deployment and the trust boundary
 
-**Nobody SSHes into the host.** `scripts/provision-host.sh` is a one-time root
-bootstrap; after it, every deploy is `.github/workflows/deploy.yml`. The
-workflow renders `.env` from GitHub Secrets and variables and pipes it over the
-SSH session — the deploy key's forced command ignores arguments, so stdin is
-the only channel. On the far end `scripts/hawk-deploy` (installed to
-`/usr/local/bin`, root-owned, **outside** the checkout so the deploy user
-cannot rewrite what its own key runs) validates that environment, writes
-`.env` at 600, and deploys. The `production` GitHub Environment gates every run
-behind a reviewer.
+Read `docs/continuous-deployment.md` before changing release promotion, the SSH
+protocol, bootstrap or recovery. It owns the migration sequence and permission
+requirements. The initial contract-0 release is a baseline; production requires
+all three contract-v1 images before approval.
 
-`hawk-deploy` refuses a deploy whose incoming `TOKEN_ENCRYPTION_KEY` differs
-from the host's, and leaves `.env` untouched — writing `.env` every deploy
-means a wrong secret would otherwise silently orphan every enrolled adult's
-token. CI tests that refusal; don't relax it.
+The root-owned `scripts/hawk-deploy` launcher is installed outside the checkout.
+It accepts a bounded JSON request, locks the host, fetches main and authorizes
+an exact current revision. Runtime deployment logic executes from that revision's
+clean worktree. Launcher updates require one host-owner provisioning run.
 
-`HAWK_BOT_TOKEN_ENCRYPTION_KEY` and
-`HAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64` are *required* but deliberately
-**not** compared. The first encrypts one workspace installation, so changing it
-costs a single admin reinstall; the second is a read-only key on a service
-account that nothing stored depends on. Neither is worth blocking a deploy
-over. CI tests that both stay rotatable, so they don't get conflated with
-`TOKEN_ENCRYPTION_KEY` later.
+`scripts/deploy.py` validates staged configuration and image contracts before
+apply. It refuses a change to hawk-mod's existing `TOKEN_ENCRYPTION_KEY`.
+hawk-bot's key and Google credential remain rotatable. Preserve those distinct
+policies and their tests. Secret files stay mode 600 outside source worktrees.
 
-Required means required: hawk-bot's config schema has no default for the Google
-key, so a blank one is a crash loop, not a quiet calendar. That is why both
-`deploy.yml` and `hawk-deploy` check it — and why the compose wiring is
-asserted in CI. It shipped once with the variable never plumbed through at all.
+A post-apply failure may have run migrations. Retain the failure record,
+previous images and authenticated encrypted backup. Database restore is an
+explicit maintenance operation; image rollback requires schema compatibility.
 
-Holding that credential is not the same as having calendar access, and this
-repo cannot verify the difference: the Calendar API has to be enabled in the
-service account's Cloud project, and each calendar shared with the account's
-own address. `/hawkbot calendar` in Slack is the check that can see all three.
-
-Understand what that does and does not protect. Deployment applies whatever
-`main` says, and `docker-compose.yml` can mount any host path — so **merging to
-`main` here is code execution on the machine holding hawk-mod's data**. The key
-restrictions limit a leaked CI secret, not a merge. Branch protection and narrow
-merge rights on this repo are the actual control; app-repo merges only produce
-images, which is why student and mentor contribution belongs there. Don't
-weaken this arrangement (e.g. by moving `hawk-deploy` into the checkout, or
-dropping the environment gate) without saying so explicitly.
+Production keeps its GitHub Environment approval. Referencing the environment
+in YAML alone does not configure reviewers. Merging suite configuration grants
+host code execution through Docker; branch protection and narrow merge rights
+remain the actual control. Apps retain separate credentials and persistent data.
 
 ## Sensitive data
 
