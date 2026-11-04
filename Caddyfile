@@ -32,3 +32,22 @@ mod.{$DOMAIN} {
 bot.{$DOMAIN} {
 	reverse_proxy hawk-bot:3000
 }
+
+# Hawk Eye currently serves a read-only construction page and design docs.
+# Keep scouting APIs and mutation routes blocked until authorization exists.
+scout.{$DOMAIN} {
+	@docs {
+		method GET HEAD
+		path / /docs/* /_astro/* /pagefind/* /brand/* /favicon.ico /favicon.svg /health
+	}
+	handle @docs {
+		reverse_proxy hawk-eye:3000
+	}
+	handle {
+		respond "Hawk Eye scouting is not available yet." 503
+	}
+	# Return a controlled response if the app is unavailable.
+	handle_errors {
+		respond "Hawk Eye documentation is not available yet." 503
+	}
+}

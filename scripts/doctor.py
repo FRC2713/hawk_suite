@@ -15,14 +15,14 @@ parser.add_argument('--manifests', type=Path, help='write domain-specific Slack 
 args = parser.parse_args()
 release = validate(json.loads(Path(args.release).read_text()))
 failed = False
-for host, path in [('apps', '/'), ('shop', '/api/health'), ('mod', '/health'), ('bot', '/health')]:
+for host, path in [('apps', '/'), ('shop', '/api/health'), ('mod', '/health'), ('bot', '/health'), ('scout', '/health')]:
     name = host + '.' + args.domain
     try:
         socket.getaddrinfo(name, 443)
         with urllib.request.urlopen('https://' + name + path, timeout=15) as response:
             if host != 'apps':
                 body = json.load(response)
-                expected = release['apps']['hawk-' + host]['revision']
+                expected = release['apps']['hawk-eye' if host == 'scout' else 'hawk-' + host]['revision']
                 if body.get('revision') != expected:
                     raise ValueError('revision mismatch')
                 if body.get('installed') is False:

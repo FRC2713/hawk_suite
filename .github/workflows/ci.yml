@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  packages: read
 
 jobs:
   validate:
@@ -15,7 +16,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Shell and deployment transaction checks
         run: |
-          shellcheck setup.sh update.sh scripts/send-deploy.sh scripts/verify-https.sh scripts/provision-host.sh
+          shellcheck setup.sh update.sh scripts/send-deploy.sh scripts/verify-https.sh scripts/provision-host.sh scripts/test-hawk-eye-routing.sh
           python3 -m unittest discover -s test -v
           python3 scripts/release.py --env > /tmp/release.env
       - name: Validate resolved configuration and credential separation
@@ -41,5 +42,12 @@ jobs:
         run: |
           python3 -c "import yaml; yaml.safe_load(open('cloud-init.yaml'))"
           docker run --rm -e DOMAIN=ci.example.org -v "$PWD/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+      - name: Verify Hawk Eye read-only public routing
+        run: bash scripts/test-hawk-eye-routing.sh
+      - name: Authenticate to private suite container packages
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+        run: printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
       - name: Exercise encrypted backup and recovery with disposable volumes
         run: python3 test/backup-integration.py

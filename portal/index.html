@@ -53,6 +53,10 @@
         <h2>Hawk Bot</h2>
         <p>Team assistant for Slack — <code>/hawk</code></p>
       </a>
+      <a class="app" id="scout" href="#">
+        <h2>Hawk Eye</h2>
+        <p>Scouting tools coming soon.</p>
+      </a>
     </div>
     <footer>
       Built by <a href="https://github.com/FRC2713">FRC 2713 Red Hawk Robotics</a>
@@ -60,12 +64,13 @@
   </main>
   <script>
     // The portal is served at apps.<domain>; the apps are siblings at
-    // shop./mod./bot.<domain>, so drop this page's own "apps." label first.
+    // shop./mod./bot./scout.<domain>, so drop this page's own "apps." label first.
     const host = window.location.host.replace(/^apps\./, '');
     const proto = window.location.protocol;
     document.getElementById('shop').href = `${proto}//shop.${host}`;
     document.getElementById('mod').href = `${proto}//mod.${host}`;
     document.getElementById('bot').href = `${proto}//bot.${host}`;
+    document.getElementById('scout').href = `${proto}//scout.${host}/`;
   </script>
 </body>
 </html>
