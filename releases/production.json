@@ -2,19 +2,24 @@
   "schema": 1,
   "apps": {
     "hawk-shop": {
-      "digest": "sha256:a7b591e0a8f2b7b6f8031517bdcd26aa4d07c3b5e0b58df061537e817555a8a1",
-      "revision": "59fc21726cda6a520adff123bb26b7c319952655",
-      "contract": 0
+      "revision": "91efbfe1821bd7c32a38287542a263160f7a7001",
+      "digest": "sha256:6706c19a6c140b47596987078e6bb504251c73c3ec24d0e11c386340a12fac06",
+      "contract": 1
     },
     "hawk-mod": {
-      "digest": "sha256:6283ace20e265fca17f016c836b125f3c2db2a04c545428d0a4c860798102882",
-      "revision": "8c6e3575dd31e3b9336fe0b46146992720717056",
-      "contract": 0
+      "revision": "0d2cb2b05b983c1de0a34aa0235c0b88441859b4",
+      "digest": "sha256:b19dd0775a335f483739d370b697b95c0f135f4997359c3758592b74b16e203b",
+      "contract": 1
     },
     "hawk-bot": {
-      "digest": "sha256:d4f743878950697de7ee3b502b7199491070f5d43aa4ff9586adfddfa7766917",
-      "revision": "8978fcf4b93dfbd438cac61532408764eeff40c3",
-      "contract": 0
+      "revision": "2a46946d2af195a49989088ca5a43bc39c062096",
+      "digest": "sha256:f2efd7fdd5dc05da003a2dbf5846aac81cf683ca7a24e241f2a330c8bc6b0d33",
+      "contract": 1
+    },
+    "hawk-eye": {
+      "digest": "sha256:c9e8c48bee0ce9d61c88294243c8f22d011fd744c6b434f620e00e11ced854f9",
+      "revision": "88448f281f383c3a5ee4814f037cb5a3b164516b",
+      "contract": 1
     }
   }
 }

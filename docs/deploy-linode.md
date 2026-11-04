@@ -4,7 +4,7 @@
 
 # Deploying hawk_suite to Linode
 
-One Linode, one Docker Compose stack, four hostnames. About twenty minutes,
+One Linode, one Docker Compose stack, five hostnames. About twenty minutes,
 most of it waiting on DNS.
 
 Do the prerequisites first — the setup script asks for every app's credentials,
@@ -33,6 +33,9 @@ and going back to collect them afterwards means editing `.env` by hand.
   GitHub token with `read:packages` ready; `setup.sh` will offer to
   `docker login` with it.
 
+Hawk Eye is the fourth app at `https://scout.redhawkrobotics.org`.
+It exposes its construction page and docs. See [hawk-eye.md](hawk-eye.md).
+
 ## 1. Create the Linode
 
 **Shared CPU, 2 GB RAM (Linode 2GB, ~$12/mo), Ubuntu 24.04 LTS**, in a region
@@ -55,7 +58,7 @@ Add your SSH key, set a root password, and boot it.
 
 ## 2. Point DNS at it
 
-Four A records, all to the Linode's public IPv4:
+Five A records, all to the Linode's public IPv4:
 
 | Host           | Type | Value            |
 | -------------- | ---- | ---------------- |
@@ -63,9 +66,10 @@ Four A records, all to the Linode's public IPv4:
 | `shop`         | A    | the Linode's IP  |
 | `mod`          | A    | the Linode's IP  |
 | `bot`          | A    | the Linode's IP  |
+| `scout`        | A    | the Linode's IP  |
 
 The bare domain is never served by this stack — it can keep pointing at the
-team website. A wildcard `*.<domain>` instead of the four subdomain records
+team website. A wildcard `*.<domain>` instead of the five subdomain records
 works too, if nothing else occupies the zone's subdomains. Add AAAA records
 for the IPv6 address if you want it reachable over v6.
 
@@ -288,22 +292,23 @@ Pulls the current images, restarts what changed, prunes the old layers. Every
 app applies its database migrations on boot, so that is the whole procedure.
 
 To pin versions instead of tracking each repo's `main`, set `HAWK_SHOP_TAG`,
-`HAWK_MOD_TAG`, and `HAWK_BOT_TAG` in `.env` to released tags. Worth doing
+`HAWK_MOD_TAG`, `HAWK_BOT_TAG`, and `HAWK_EYE_TAG` in `.env` to released tags. Worth doing
 before competition season, when an unexpected change mid-event is the thing you
 least want.
 
 ## Backups
 
-Three volumes hold everything that matters:
+Four app volumes hold state including Hawk Eye:
 
 | Volume            | Contents                                                    |
 | ----------------- | ----------------------------------------------------------- |
 | `hawk_shop_data`  | hawk-shop's SQLite database and uploaded part images        |
 | `hawk_mod_data`   | parental-consent records; at `LOG_MODE=full`, students' DM text |
 | `hawk_bot_data`   | hawk-bot's workspace install token and its settings table   |
+| `hawk_eye_data`   | Hawk Eye SQLite database, `/data/app.db` |
 
 `hawk_bot_data` is the one you can afford to lose: an admin reinstalling and a
-coach re-entering a couple of settings recreates it. Back up the other two.
+coach re-entering a couple of settings recreates it. Back up the other app volumes. See [hawk-eye.md](hawk-eye.md) for Hawk Eye.
 
 Use SQLite's backup API rather than copying the files — a `cp` of a WAL
 database mid-write produces a corrupt copy:

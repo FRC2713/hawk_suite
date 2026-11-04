@@ -1,8 +1,9 @@
 # hawk_suite — Plan
 
 hawk_suite packages [hawk-shop](https://github.com/FRC2713/hawk-shop),
-[hawk-mod](https://github.com/FRC2713/hawk-mod), and
-[hawk-bot](https://github.com/FRC2713/hawk-bot) into one Docker Compose stack,
+[hawk-mod](https://github.com/FRC2713/hawk-mod),
+[hawk-bot](https://github.com/FRC2713/hawk-bot), and
+[hawk-eye](https://github.com/FRC2713/hawk-eye) into one Docker Compose stack,
 deploys it to a single Linode, and puts every app behind real HTTPS on
 subdomains of one domain.
 
@@ -27,7 +28,8 @@ image; hawk_suite composes them.
 
 ## Non-goals
 
-- **Other apps.** QRScout and rhr-mfg were in an earlier version of this repo
+- **Other apps.** Hawk Eye is explicitly included,
+  with deployment gates described in [docs/hawk-eye.md](docs/hawk-eye.md). QRScout and rhr-mfg were in an earlier version of this repo
   and were removed. QRScout is a static site with no server-side state and no
   reason to live in this stack; rhr-mfg was superseded by hawk-shop. hawk-bot
   was added deliberately, and it earns the slot the same way the others do: a
@@ -54,10 +56,12 @@ image; hawk_suite composes them.
 | [hawk-shop](https://github.com/FRC2713/hawk-shop) | `ghcr.io/frc2713/hawk-shop` | 3000 | SQLite + uploaded images in `/data` | Onshape OAuth + API |
 | [hawk-mod](https://github.com/FRC2713/hawk-mod) | `ghcr.io/frc2713/hawk-mod` | 3000 | SQLite in `/data` | Slack (events, OAuth) |
 | [hawk-bot](https://github.com/FRC2713/hawk-bot) | `ghcr.io/frc2713/hawk-bot` | 3000 | SQLite in `/data` | Slack (commands, events, OAuth) |
+| [hawk-eye](https://github.com/FRC2713/hawk-eye) | `ghcr.io/frc2713/hawk-eye` | 3000 | SQLite in `/data` | Reviewed release; authentication pending |
 
-All three publish `linux/amd64` images from a `docker.yml` workflow on every
+Hawk Shop, Mod, and Bot publish `linux/amd64` images from a `docker.yml` workflow on every
 push to `main`, carry their own `HEALTHCHECK`, run as a non-root user, and
-apply migrations on boot.
+apply migrations on boot. Hawk Eye publishes verified SHA-tagged images through
+`image.yml` and uses the same runtime and release contract.
 
 hawk-mod and hawk-bot are separate Slack apps sharing one workspace. hawk-bot
 requests no user scopes and holds no per-person tokens: everything it does, it
@@ -71,10 +75,10 @@ One Linode, one compose stack:
 
 - **Caddy** is the only container binding host ports (80/443). It serves the
   static portal at `apps.` and reverse-proxies `shop.`, `mod.`, and
-  `bot.` to the app containers by service name. Let's Encrypt certificates are
+  `bot.`, and `scout.` to the app containers by service name. Let's Encrypt certificates are
   automatic.
 - **The apps** publish no ports and are reachable only through Caddy.
-- **State** is three named Docker volumes. Containers are disposable; the
+- **State** is four named app Docker volumes including Hawk Eye. Containers are disposable; the
   volumes are not.
 - **Deployment** is a GitHub Actions job that SSHes in as a restricted `deploy`
   user whose key can only run `/usr/local/bin/hawk-deploy`, gated behind a
@@ -83,7 +87,7 @@ One Linode, one compose stack:
   merge rights here.
 
 `DOMAIN` is the single switch: every URL any app needs is derived from it
-(`https://shop.$DOMAIN`, `https://mod.$DOMAIN`, `https://bot.$DOMAIN`), with
+(`https://shop.$DOMAIN`, `https://mod.$DOMAIN`, `https://bot.$DOMAIN`, `https://scout.$DOMAIN`), with
 per-variable overrides in `.env` for the cases where a registered OAuth URL
 disagrees.
 
@@ -98,7 +102,9 @@ disagrees.
 
 ## Status
 
-All three apps publish images and this repo composes them. Remaining work:
+The suite composes four apps. Hawk Eye currently exposes its construction
+page and docs; scouting and authentication remain unimplemented. See
+[docs/hawk-eye.md](docs/hawk-eye.md). Remaining work:
 
 - [ ] Run the whole thing on a real Linode with real DNS and confirm every
       app's OAuth round trip completes (the redirect URIs are the likely
@@ -138,7 +144,7 @@ All three apps publish images and this repo composes them. Remaining work:
 The release pipeline is implemented in `.github/workflows/propose-release.yml`,
 `.github/workflows/deploy.yml`, `scripts/hawk-deploy` and `scripts/deploy.py`.
 Production uses digest entries in `releases/production.json`. The initial
-contract-0 entries are a historical baseline; promote all three contract-v1
+contract-0 entries are a historical baseline; promote all four contract-v1
 images and complete the migration in `docs/continuous-deployment.md` before
 running the new workflow. Database recovery remains an explicit maintenance
 operation. Host-local encrypted backups are automated; off-site copying,

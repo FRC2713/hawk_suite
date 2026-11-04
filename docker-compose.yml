@@ -16,7 +16,7 @@ services:
       # hawk-deploy reloads the config explicitly, but only from the version
       # installed on the host; bump this when changing the Caddyfile to force a
       # recreate regardless of which hawk-deploy the host is running.
-      CADDY_CONFIG_REV: "4"
+      CADDY_CONFIG_REV: "5"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./portal:/srv/portal:ro
@@ -28,6 +28,7 @@ services:
       - hawk-shop
       - hawk-mod
       - hawk-bot
+      - hawk-eye
 
   hawk-shop:
     image: ${HAWK_SHOP_IMAGE:-ghcr.io/frc2713/hawk-shop:${HAWK_SHOP_TAG:-latest}}
@@ -154,9 +155,23 @@ services:
       - hawk_bot_data:/data
     # The image carries its own HEALTHCHECK against /health.
 
+  hawk-eye:
+    image: ${HAWK_EYE_IMAGE:-ghcr.io/frc2713/hawk-eye:${HAWK_EYE_TAG:-sha-88448f281f383c3a5ee4814f037cb5a3b164516b}}
+    restart: unless-stopped
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3000
+      DATA_DIR: /data
+      APP_URL: ${HAWK_EYE_APP_URL:-https://scout.${DOMAIN}}
+      LOG_LEVEL: ${HAWK_EYE_LOG_LEVEL:-info}
+    volumes:
+      - hawk_eye_data:/data
+    # The image carries its own HEALTHCHECK against /health.
+
 volumes:
   caddy_data:
   caddy_config:
   hawk_shop_data:
   hawk_mod_data:
   hawk_bot_data:
+  hawk_eye_data:

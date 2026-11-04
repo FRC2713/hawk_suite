@@ -31,6 +31,10 @@ try:
         ref = os.environ.get(app.upper().replace('-', '_') + '_TEST_IMAGE') or image(app, release['apps'][app])
         if not os.environ.get(app.upper().replace('-', '_') + '_TEST_IMAGE'):
             subprocess.run(['docker', 'pull', '--platform', 'linux/amd64', ref], check=True, stdout=subprocess.DEVNULL)
+            revision = subprocess.check_output(['docker', 'image', 'inspect', '--format',
+                                               '{{index .Config.Labels "org.opencontainers.image.revision"}}', ref], text=True).strip()
+            assert revision == release['apps'][app]['revision'], 'image revision mismatch: ' + app
+
         args = ['docker', 'run', '-d', '--network', 'none', '--health-interval', '1s', '--health-start-period', '1s',
                 '--label', 'com.docker.compose.project=' + project, '--label', 'com.docker.compose.service=' + app]
         for name, value in fixture.items():

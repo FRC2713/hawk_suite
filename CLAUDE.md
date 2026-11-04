@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-hawk_suite is the **orchestration layer** that packages three FRC 2713 (Red Hawk
+hawk_suite is the **orchestration layer** that packages four FRC 2713 (Red Hawk
 Robotics) apps for self-hosting on a single Linode. It contains **no
 application code** — only a Docker Compose stack, reverse-proxy config, env
 templates, cloud-init user-data, and shell tooling.
@@ -16,11 +16,14 @@ The apps live in their own repos and publish container images to GHCR:
 | hawk-shop | `FRC2713/hawk-shop` | `ghcr.io/frc2713/hawk-shop` | Onshape-driven manufacturing kanban |
 | hawk-mod | `FRC2713/hawk-mod` | `ghcr.io/frc2713/hawk-mod` | Youth-protection DM monitoring for Slack |
 | hawk-bot | `FRC2713/hawk-bot` | `ghcr.io/frc2713/hawk-bot` | Team assistant for Slack (`/hawkbot`) |
+| hawk-eye | `FRC2713/hawk-eye` | `ghcr.io/frc2713/hawk-eye` | Scouting construction page and design docs |
 
 Implication: bugs in an app's *behavior* belong in that app's repo, not here.
 This repo owns routing, wiring, env plumbing, and the deploy/update experience.
 
-Scope is deliberately these three apps. QRScout and rhr-mfg were removed — see
+Scope is deliberately these four apps. Read `docs/hawk-eye.md` before changing
+Hawk Eye releases or public routes. Its construction page and docs are public;
+scouting APIs stay blocked until authorization exists. QRScout and rhr-mfg were removed — see
 PLAN.md's non-goals before adding anything back.
 
 hawk-mod and hawk-bot are **two separate Slack apps** in one workspace, with
@@ -61,11 +64,11 @@ One Docker host runs everything (`docker-compose.yml`):
   tokens at all, which is what keeps it uncontroversial next to hawk-mod.
 
 Routing lives in `Caddyfile`: `apps.` → portal, `shop.` → hawk-shop:3000, `mod.` →
-hawk-mod:3000, `bot.` → hawk-bot:3000. `$DOMAIN` is interpolated at container
+hawk-mod:3000, `bot.` → hawk-bot:3000, `scout.` → hawk-eye:3000. `$DOMAIN` is interpolated at container
 start. Editing the Caddyfile also means bumping `CADDY_CONFIG_REV` in
 `docker-compose.yml` — the comment there says why.
 
-No app has a separate database server. All three apply their own migrations on
+No app has a separate database server. All four apply their own migrations on
 boot, which is why `update.sh` is a single step.
 
 ### DOMAIN is the single switch
@@ -82,6 +85,9 @@ certificates. `DOMAIN=localhost` still brings the stack up under Caddy's local
 certificates — useful for hawk-shop — but neither Slack app can work that way.
 Don't reintroduce offline/pit mode as a supported path.
 
+Hawk Eye stores SQLite at `/data/app.db` in `hawk_eye_data`, listens on 3000,
+and exposes `/health`. Its release contract is `.hawk/app.json` in its app repo.
+
 ## Invariants
 
 1. All config via environment variables or mounted files — **never bake
@@ -96,7 +102,7 @@ Don't reintroduce offline/pit mode as a supported path.
 Read `docs/continuous-deployment.md` before changing release promotion, the SSH
 protocol, bootstrap or recovery. It owns the migration sequence and permission
 requirements. The initial contract-0 release is a baseline; production requires
-all three contract-v1 images before approval.
+all four contract-v1 images before approval.
 
 The root-owned `scripts/hawk-deploy` launcher is installed outside the checkout.
 It accepts a bounded JSON request, locks the host, fetches main and authorizes

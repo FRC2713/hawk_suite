@@ -31,12 +31,13 @@ command -v openssl >/dev/null 2>&1 || {
 echo "hawk_suite setup"
 echo "================"
 echo
-echo "The suite serves four hostnames off one domain (the bare domain is"
+echo "The suite serves five hostnames off one domain (the bare domain is"
 echo "left alone — it can keep pointing at the team website):"
 echo "  https://apps.<domain>  portal"
 echo "  https://shop.<domain>  hawk-shop"
 echo "  https://mod.<domain>   hawk-mod"
 echo "  https://bot.<domain>   hawk-bot"
+echo "  https://scout.<domain> hawk-eye"
 echo
 echo "hawk-mod and hawk-bot only work on a real, publicly resolvable domain —"
 echo "Slack posts to them from Slack's servers over HTTPS."
@@ -102,6 +103,8 @@ DOMAIN=${DOMAIN}
 HAWK_SHOP_TAG=latest
 HAWK_MOD_TAG=latest
 HAWK_BOT_TAG=latest
+HAWK_EYE_TAG=sha-88448f281f383c3a5ee4814f037cb5a3b164516b
+HAWK_EYE_APP_URL=https://scout.${DOMAIN}
 
 # ── hawk-shop ────────────────────────────────────────────────────────
 ONSHAPE_CLIENT_ID=${ONSHAPE_CLIENT_ID}
@@ -188,6 +191,7 @@ echo "  Portal:    https://apps.${DOMAIN}"
 echo "  hawk-shop: https://shop.${DOMAIN}"
 echo "  hawk-mod:  https://mod.${DOMAIN}/health"
 echo "  hawk-bot:  https://bot.${DOMAIN}/health"
+echo "  hawk-eye:  https://scout.${DOMAIN}"
 echo
 echo "Next: a Lead Coach opens https://mod.${DOMAIN}/slack/install to install"
 echo "hawk-mod's Slack app, then every adult opens the same URL to authorize."

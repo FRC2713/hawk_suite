@@ -16,5 +16,14 @@ assert mod['LIFECYCLE_SHEET_ID'] == 'ci-sheet'
 assert 'LIFECYCLE_SHEET_ID' not in bot
 assert not set(mod).intersection({'DIGEST_CRON', 'QUARTERLY_CRON', 'STUDENT_USERGROUP', 'ADULT_USERGROUP'})
 assert services['hawk-shop']['environment']['APP_URL'] == 'https://shop.ci.example.org'
-for app in ('hawk-shop', 'hawk-mod', 'hawk-bot'):
+for app in ('hawk-shop', 'hawk-mod', 'hawk-bot', 'hawk-eye'):
     assert '@sha256:' in services[app]['image']
+
+eye = services['hawk-eye']
+assert eye['environment'] == {
+    'APP_URL': 'https://scout.ci.example.org', 'HOST': '0.0.0.0',
+    'PORT': '3000', 'DATA_DIR': '/data', 'LOG_LEVEL': 'info',
+}
+assert 'ports' not in eye
+assert eye['volumes'][0]['source'] == 'hawk_eye_data'
+assert eye['volumes'][0]['target'] == '/data'

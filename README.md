@@ -1,8 +1,9 @@
 # hawk_suite
 
-Three Red Hawk Robotics apps — [hawk-shop](https://github.com/FRC2713/hawk-shop),
-[hawk-mod](https://github.com/FRC2713/hawk-mod), and
-[hawk-bot](https://github.com/FRC2713/hawk-bot) — packaged as one Docker
+Four Red Hawk Robotics apps — [hawk-shop](https://github.com/FRC2713/hawk-shop),
+[hawk-mod](https://github.com/FRC2713/hawk-mod),
+[hawk-bot](https://github.com/FRC2713/hawk-bot), and
+[hawk-eye](https://github.com/FRC2713/hawk-eye) — packaged as one Docker
 Compose stack behind automatic HTTPS, so a team can run them on a single cheap
 VPS.
 
@@ -12,10 +13,14 @@ that routes a subdomain to each, environment templates, and setup tooling.
 
 | URL | App |
 | --- | --- |
-| `https://apps.<domain>` | Portal — links to all three |
+| `https://apps.<domain>` | Portal — links to all four |
 | `https://shop.<domain>` | **hawk-shop** — manufacturing kanban driven by Onshape |
 | `https://mod.<domain>` | **hawk-mod** — youth-protection DM monitoring for Slack |
 | `https://bot.<domain>` | **hawk-bot** — team assistant for Slack, `/hawkbot` |
+| `https://scout.<domain>` | **hawk-eye** construction page and scouting design docs |
+
+Hawk Eye serves its construction page and docs at `scout.<domain>`.
+See [its deployment notes](docs/hawk-eye.md).
 
 ## Deploying
 
@@ -42,7 +47,7 @@ credentials, generates both Slack apps' secrets, writes `.env`, and starts the
 stack.
 
 DNS: point A records for `apps.<domain>`, `shop.<domain>`, `mod.<domain>`, and
-`bot.<domain>` at the host (or a wildcard `*.<domain>`). The bare domain is
+`bot.<domain>`, and `scout.<domain>` at the host (or a wildcard `*.<domain>`). The bare domain is
 never served, so it can keep pointing at the team website.
 
 [`cloud-init.yaml`](cloud-init.yaml) gets a fresh Linode to the point of that
@@ -77,8 +82,9 @@ sets that up.
 ## Contributing
 
 Most work belongs in the app repos — [hawk-shop](https://github.com/FRC2713/hawk-shop),
-[hawk-mod](https://github.com/FRC2713/hawk-mod), and
-[hawk-bot](https://github.com/FRC2713/hawk-bot) — where each has its own
+[hawk-mod](https://github.com/FRC2713/hawk-mod),
+[hawk-bot](https://github.com/FRC2713/hawk-bot), and
+[hawk-eye](https://github.com/FRC2713/hawk-eye) — where each has its own
 compose file for running that app on a laptop. You do not need access to the
 server to write code, and merging there produces a container image rather than
 touching the host.
@@ -94,7 +100,7 @@ are narrow on purpose. See the trust model in
 ## What's where
 
 ```
-docker-compose.yml     caddy + hawk-shop + hawk-mod + hawk-bot, from ghcr.io/frc2713/*
+docker-compose.yml     caddy + hawk-shop + hawk-mod + hawk-bot + hawk-eye, from ghcr.io/frc2713/*
 Caddyfile              subdomain routing + automatic HTTPS
 .env.example           every knob, documented
 setup.sh               interactive first run → .env → docker compose up
@@ -107,13 +113,14 @@ docs/                  deploy-linode.md, continuous-deployment.md
 .github/workflows/     ci.yml validates PRs; deploy.yml ships main
 ```
 
-Every image comes from its app repo's `docker.yml` workflow, which publishes to
-`ghcr.io/frc2713/<app>` on every push to `main`. If those packages are private,
+Hawk Shop, Mod, and Bot publish `ghcr.io/frc2713/<app>` through `docker.yml`
+on pushes to `main`. Hawk Eye uses `image.yml` with explicit publication,
+verification, and immutable SHA tags. If those packages are private,
 `setup.sh` will offer to `docker login ghcr.io` with a `read:packages` token.
 
 ## Data
 
-Three named volumes hold all state; the containers are disposable.
+Four named app volumes hold all state; the containers are disposable.
 `hawk_mod_data` holds parental-consent records and, at `LOG_MODE=full`,
 students' DM text. Read the backup and data-handling sections of
 [docs/deploy-linode.md](docs/deploy-linode.md) before running it on a rented
@@ -125,3 +132,7 @@ recreatable by reinstalling, and not sensitive in the same way.
 The reviewed deployment path now uses `releases/production.json`, immutable image digests and an exact suite revision. App publication proposes release PRs automatically. Production approval remains separate. See [the migration and recovery guide](docs/continuous-deployment.md) before the first rollout: existing images must be replaced by contract-v1 candidates, the host launcher must be upgraded once, and release automation plus the backup key must be configured.
 
 `python3 scripts/doctor.py --domain <domain>` checks routing and deployed revisions. The interactive `setup.sh` path is still available for installations without Actions; `update.sh` refuses to bypass a host already managed by reviewed releases.
+
+Hawk Eye uses `ghcr.io/frc2713/hawk-eye`, internal port 3000, and the
+`hawk_eye_data` volume. Route `scout.<domain>` to the suite host. Production
+pins its digest in `releases/production.json` alongside the other apps.

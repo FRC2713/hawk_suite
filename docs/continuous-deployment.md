@@ -1,6 +1,6 @@
 # Reviewed releases
 
-Production ships the three image digests in `releases/production.json`, together with an exact suite commit. The release proposal and the deployment approval are separate reviews. Merging an app change publishes a tested image and asks the suite to propose that image. Merging the suite PR does not deploy it.
+Production ships the four image digests in `releases/production.json`, together with an exact suite commit. The release proposal and the deployment approval are separate reviews. Merging an app change publishes a tested image and asks the suite to propose that image. Merging the suite PR does not deploy it.
 
 ```text
 app main → reusable CI → build candidate → fresh and upgrade smoke tests
@@ -13,10 +13,24 @@ app main → reusable CI → build candidate → fresh and upgrade smoke tests
 
 1. Merge this suite change first. Its initial release file records the existing published digests with `contract: 0`. Those are a baseline, not approved candidates for the new deployment protocol. Deploy refuses them before touching the running stack.
 2. Create a GitHub App installed on `FRC2713/hawk_suite`, with Contents write and Pull requests write. Set `HAWK_SUITE_APP_ID` as an Actions variable and `HAWK_SUITE_APP_PRIVATE_KEY` as a secret in the suite and all three app repositories. The automation requests short-lived installation tokens restricted to the suite. The receiver reads public app workflow runs to verify publication. If these repos become private, grant the receiver Actions read and Contents read on those repos using a separate read-only installation.
-3. Merge the three app workflow changes. Each publisher verifies, builds and tests an image, then opens a release PR. Merge all three proposals before the first new Deploy run. If a proposal job fails, retry that job, not the completed publisher.
+3. Merge the three app workflow changes. Each publisher verifies, builds and tests an image, then opens a release PR. Merge the three existing-app proposals plus the Hawk Eye release before the first new Deploy run. If a proposal job fails, retry that job, not the completed publisher.
 4. Generate `BACKUP_ENCRYPTION_KEY` once with `openssl rand -base64 32`. Save it as a suite production secret and retain a copy in the password manager. It is separate from both apps' encryption keys. Keep old backup keys if rotating it.
-5. The host owner re-runs `scripts/provision-host.sh` once from the new suite revision to replace the old forced-command launcher. Existing SSH keys and volumes are preserved. The new transport is JSON; the legacy launcher cannot process it. The launcher remains root-owned at `/usr/local/bin/hawk-deploy` and only authorizes an exact revision of main. Runtime deployment code comes from that reviewed revision's worktree.
+5. The host owner installs the new forced-command launcher once. Existing hosts can use the launcher-only command below, keeping their existing SSH key and volumes. Use `scripts/provision-host.sh` for a fresh host. The new transport is JSON; the legacy launcher cannot process it. The launcher remains root-owned at `/usr/local/bin/hawk-deploy` and only authorizes an exact revision of main. Runtime deployment code comes from that reviewed revision's worktree.
 6. Confirm the `production` environment has required reviewers, permits only main, and protects its secrets. Enable required CI and narrow merge rights on the suite. Run Deploy from main, inspect the proposed release, then approve it.
+
+For an existing host, run this in its root console to update only the
+launcher. The pinned revision contains the new JSON launcher. This does not
+regenerate an SSH key or change GitHub SSH secrets:
+
+```bash
+launcher=$(mktemp)
+curl -fsSL https://raw.githubusercontent.com/FRC2713/hawk_suite/4dd3aa17402c46357641b419a068da7592b3fdaa/scripts/hawk-deploy -o "$launcher" &&
+  install -o root -g root -m 755 "$launcher" /usr/local/bin/hawk-deploy
+rm -f "$launcher"
+```
+
+The new backup encryption key is separate from SSH and Slack credentials. Keep
+all existing deployment and token-encryption keys unchanged during migration.
 
 The source does not configure repository protection or create reviewer rules. Configure those in GitHub before rollout. An environment name in YAML alone does not require approval.
 
@@ -54,7 +68,7 @@ Preflight failure removes staged secret files and leaves active configuration un
 
 Before applying migrations, deployment takes SQLite backup-API snapshots using the old running containers and copies hawk-shop uploads. It encrypts the archive using AES-256-CBC with PBKDF2 and authenticates the ciphertext with a separate derived HMAC key. Plaintext temporary files are removed on exit. Backups remain host-local under `.deploy/backups`; copy encrypted archives and their `.hmac` files off-site with an appropriate retention policy. This pipeline does not configure an off-site storage account. Uploaded files are copied while the old app is running; use a maintenance window when upload-level point-in-time consistency is required.
 
-Compose waits for readiness. Explicit checks then require all four expected services to be running, app health to be healthy, and each running image ID to match the release digest. Caddy reload and public HTTPS checks must succeed. Successful deployment atomically writes `.deploy/current.json`, retains `.deploy/previous.json`, and returns a secret-free receipt to Actions. There is no automatic image pruning during deployment.
+Compose waits for readiness. Explicit checks then require all five expected services to be running, app health to be healthy, and each running image ID to match the release digest. Caddy reload and public HTTPS checks must succeed. Successful deployment atomically writes `.deploy/current.json`, retains `.deploy/previous.json`, and returns a secret-free receipt to Actions. There is no automatic image pruning during deployment.
 
 ## Recovery
 
@@ -89,3 +103,6 @@ Doctor checks DNS, HTTPS, expected app revisions and access to every pinned imag
 A repository-dispatch request is a release suggestion, not a deployment authorization. The receiver allowlists apps, validates revision and digest formats, checks a successful main publisher job, rejects superseded source revisions, verifies the SHA tag and image revision, and opens a PR changing only that app's entry. `repository_dispatch` requires Contents write, not Actions write.
 
 Anyone who can merge suite configuration can cause code execution on the host. Compose can mount host paths, and the deploy account's Docker membership is root-equivalent. Branch protection and narrow merge rights remain essential. Application-image code can access its own app's production state, so app CI and review remain part of the trust model too. Production approval remains in place.
+
+Hawk Eye is included in the same release, configuration validation, encrypted
+backup, container checks, and HTTPS checks. See [hawk-eye.md](hawk-eye.md).

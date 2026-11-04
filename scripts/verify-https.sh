@@ -26,6 +26,9 @@ check "https://apps.${DOMAIN}"       "portal"    || rc=1
 check "https://shop.${DOMAIN}"       "hawk-shop" || rc=1
 check "https://mod.${DOMAIN}/health" "hawk-mod"  || rc=1
 check "https://bot.${DOMAIN}/health" "hawk-bot"  || rc=1
+check "https://scout.${DOMAIN}/health" "hawk-eye" || rc=1
+check "https://scout.${DOMAIN}/" "hawk-eye landing page" || rc=1
+check "https://scout.${DOMAIN}/docs/" "hawk-eye docs" || rc=1
 
 # A plain-http redirect is invisible in a browser tab, because Caddy
 # bounces it back to HTTPS. Inside Onshape's HTTPS iframe it is mixed

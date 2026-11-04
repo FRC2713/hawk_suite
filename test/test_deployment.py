@@ -37,7 +37,7 @@ class ReleaseTests(unittest.TestCase):
 
     def test_release_references_are_allowlisted(self):
         text = render(release())
-        self.assertEqual(len(text.splitlines()), 3)
+        self.assertEqual(len(text.splitlines()), 4)
         self.assertIn('HAWK_BOT_IMAGE=ghcr.io/frc2713/hawk-bot@sha256:', text)
         with self.assertRaises(ValueError):
             image('arbitrary-image', {})
