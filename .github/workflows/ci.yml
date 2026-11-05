@@ -32,6 +32,9 @@ jobs:
           LIFECYCLE_SHEET_ID=ci-sheet
           REPORT_TIME=09:15
           MANAGED_USERGROUPS=S12345
+          HAWK_EYE_TBA_API_KEY=ci-tba
+          HAWK_EYE_MATCH13_API_KEY=ci-match13
+          HAWK_EYE_MATCH13_ACCOUNT=ci-account
           EOF
           docker compose --env-file /tmp/fixture.env --env-file /tmp/release.env config --format json > /tmp/resolved.json
           python3 test/check_compose.py /tmp/resolved.json

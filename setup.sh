@@ -88,6 +88,10 @@ echo "in .env later — hawk-bot will not start without it."
 prompt HAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64 "Hawk Bot Google service account key (base64)" ""
 
 echo
+echo "Hawk Eye event feeds use optional server-only TBA and match13 keys."
+prompt HAWK_EYE_TBA_API_KEY "Hawk Eye TBA API key (optional)" ""
+prompt HAWK_EYE_MATCH13_API_KEY "Hawk Eye match13 API key (optional)" ""
+
 prompt TZ "Timezone (both Slack apps)" "America/New_York"
 
 # Generated, never prompted — there is no reason for a human to pick these.
@@ -103,8 +107,11 @@ DOMAIN=${DOMAIN}
 HAWK_SHOP_TAG=latest
 HAWK_MOD_TAG=latest
 HAWK_BOT_TAG=latest
-HAWK_EYE_TAG=sha-88448f281f383c3a5ee4814f037cb5a3b164516b
+HAWK_EYE_TAG=sha-535855c59b2d1f290c899ba1c834bdcc3d6db86e
 HAWK_EYE_APP_URL=https://scout.${DOMAIN}
+HAWK_EYE_TBA_API_KEY=${HAWK_EYE_TBA_API_KEY}
+HAWK_EYE_MATCH13_API_KEY=${HAWK_EYE_MATCH13_API_KEY}
+HAWK_EYE_MATCH13_ACCOUNT=default
 
 # ── hawk-shop ────────────────────────────────────────────────────────
 ONSHAPE_CLIENT_ID=${ONSHAPE_CLIENT_ID}
