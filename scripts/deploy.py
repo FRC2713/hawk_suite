@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Apply a staged release. Called only by the restricted launcher."""
+import base64
 import json
+from contextlib import contextmanager
 import os
 from pathlib import Path
 import re
@@ -12,6 +14,33 @@ import tempfile
 from datetime import datetime, timezone
 from release import APPS, image, validate
 from backup_auth import backup_tag
+
+
+@contextmanager
+def registry_credentials(auth):
+    """Keep the runner token in a private temporary Docker config, never .env."""
+    if auth is None:
+        yield
+        return
+    if (not isinstance(auth, dict) or set(auth) != {'username', 'token'}
+            or not all(isinstance(value, str) and value and len(value) <= 4096
+                       and not any(ord(char) <= 32 for char in value) for value in auth.values())
+            or ':' in auth['username']):
+        raise ValueError('invalid registry credentials')
+    with tempfile.TemporaryDirectory(prefix='hawk-registry-') as directory:
+        encoded = base64.b64encode((auth['username'] + ':' + auth['token']).encode()).decode()
+        descriptor = os.open(Path(directory) / 'config.json', os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(descriptor, 'w') as file:
+            json.dump({'auths': {'ghcr.io': {'auth': encoded}}}, file)
+        previous = os.environ.get('DOCKER_CONFIG')
+        os.environ['DOCKER_CONFIG'] = directory
+        try:
+            yield
+        finally:
+            if previous is None:
+                os.environ.pop('DOCKER_CONFIG', None)
+            else:
+                os.environ['DOCKER_CONFIG'] = previous
 
 
 def run(args, **kwargs):
@@ -206,7 +235,9 @@ def main(stack, target, request):
 if __name__ == '__main__':
     os.umask(0o077)
     try:
-        main(Path(sys.argv[1]), Path(sys.argv[2]), json.load(sys.stdin))
+        request = json.load(sys.stdin)
+        with registry_credentials(request.get('registry_auth')):
+            main(Path(sys.argv[1]), Path(sys.argv[2]), request)
     except Exception as error:
         # Do not render subprocess args/configuration or credential parse errors.
         detail = str(error) if isinstance(error, ValueError) else type(error).__name__
