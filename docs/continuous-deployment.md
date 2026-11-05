@@ -56,6 +56,15 @@ Retain existing credentials. The complete production secret names are:
 
 Variables are `DOMAIN`, `LOG_MODE`, `TZ`, `MANAGED_USERGROUPS`, `REPORT_TIME`, `LIFECYCLE_SHEET_ID`, `ONSHAPE_IFRAME_EMBED` and `HAWK_SUITE_APP_ID`. Defaults are defined in the workflow. `REPORT_TIME` is an HH:MM seed, not cron; the saved `/hawkmod config` value wins. `MANAGED_USERGROUPS` is the administrator-editable group allowlist. Student and adult roles come from the lifecycle sheet. The old `STUDENT_USERGROUP`, `ADULT_USERGROUP`, `DIGEST_CRON` and `QUARTERLY_CRON` knobs are retired.
 
+Private GHCR images are pulled using the approved workflow job's short-lived
+`GITHUB_TOKEN`, limited to Packages read. The transport sends it through SSH
+stdin separately from application environment values. The host uses a private
+temporary Docker configuration and deletes it on success or failure. The token
+is never saved to `.env`, a release receipt, or the host's existing Docker
+configuration. Grant the suite repository Read access under each private
+package's Manage Actions access settings. No permanent registry token or
+additional host login is required for this deployment path.
+
 Image tags and image overrides are not production variables. Review image changes through the release file. The interactive setup path retains tag aliases for installations without GitHub deployment.
 
 ## What deployment does

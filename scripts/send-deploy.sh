@@ -5,7 +5,7 @@ umask 077
 scratch=$(mktemp -d)
 cleanup() { rm -rf "$scratch"; }
 trap cleanup EXIT
-for required in SSH_KEY DEPLOY_HOST DEPLOY_USER KNOWN_HOSTS DOMAIN TOKEN_ENCRYPTION_KEY HAWK_BOT_TOKEN_ENCRYPTION_KEY HAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64 BACKUP_ENCRYPTION_KEY SUITE_SHA; do
+for required in SSH_KEY DEPLOY_HOST DEPLOY_USER KNOWN_HOSTS DOMAIN TOKEN_ENCRYPTION_KEY HAWK_BOT_TOKEN_ENCRYPTION_KEY HAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64 BACKUP_ENCRYPTION_KEY SUITE_SHA GHCR_USER GHCR_TOKEN; do
   [[ -n ${!required:-} ]] || { echo "Missing $required" >&2; exit 1; }
 done
 if printf '%s' "$SSH_KEY" | grep -q 'BEGIN .*PRIVATE KEY'; then
@@ -24,7 +24,8 @@ ONSHAPE_CLIENT_ID ONSHAPE_CLIENT_SECRET SLACK_SIGNING_SECRET SLACK_CLIENT_ID SLA
 SLACK_STATE_SECRET ALERT_CHANNEL_ID TOKEN_ENCRYPTION_KEY HAWK_MOD_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64
 HAWK_BOT_SLACK_SIGNING_SECRET HAWK_BOT_SLACK_CLIENT_ID HAWK_BOT_SLACK_CLIENT_SECRET HAWK_BOT_SLACK_STATE_SECRET
 HAWK_BOT_TOKEN_ENCRYPTION_KEY HAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64 BACKUP_ENCRYPTION_KEY'''.split()
-json.dump(dict(suite_sha=os.environ['SUITE_SHA'], env={k:os.environ.get(k,'') for k in names}), open(sys.argv[1],'w'))
+json.dump(dict(suite_sha=os.environ['SUITE_SHA'], env={k:os.environ.get(k,'') for k in names},
+               registry_auth=dict(username=os.environ['GHCR_USER'], token=os.environ['GHCR_TOKEN'])), open(sys.argv[1],'w'))
 PY
 ssh -i "$scratch/key" -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
   -o "UserKnownHostsFile=$scratch/known_hosts" -o ConnectTimeout=20 \

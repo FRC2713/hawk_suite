@@ -34,6 +34,9 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
   deploy:
     needs: plan
+    permissions:
+      contents: read
+      packages: read
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: production
@@ -83,6 +86,8 @@ jobs:
           REPORT_TIME: ${{ vars.REPORT_TIME }}
           BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
           SUITE_SHA: ${{ needs.plan.outputs.revision }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ github.token }}
         run: bash scripts/send-deploy.sh
       - name: Deployment receipt
         if: always()
