@@ -86,6 +86,9 @@ jobs:
           REPORT_TIME: ${{ vars.REPORT_TIME }}
           BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
           SUITE_SHA: ${{ needs.plan.outputs.revision }}
+          HAWK_EYE_TBA_API_KEY: ${{ secrets.HAWK_EYE_TBA_API_KEY }}
+          HAWK_EYE_MATCH13_API_KEY: ${{ secrets.HAWK_EYE_MATCH13_API_KEY }}
+          HAWK_EYE_MATCH13_ACCOUNT: ${{ vars.HAWK_EYE_MATCH13_ACCOUNT || 'default' }}
           GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ github.token }}
         run: bash scripts/send-deploy.sh

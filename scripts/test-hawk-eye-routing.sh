@@ -48,6 +48,13 @@ check() {
   }
 }
 check 200 GET /
+for path in /events/2026necmp/ /events/2026necmp/updates.json /events/2026necmp/teams/2713 /teams/2713; do
+  check 200 GET "$path"
+  check 503 POST "$path"
+done
+check 503 GET /events/2026necmp/admin
+check 503 GET /api/v1/reports
+check 503 GET /mcp
 for path in /docs/ /docs/architecture /docs/contracts/report.schema.json \
             /_astro/docs.js /pagefind/pagefind.js /brand/2713-red.svg /favicon.svg /health; do
   check 200 GET "$path"

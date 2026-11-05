@@ -1,9 +1,10 @@
 # Hawk Eye deployment
 
 Hawk Eye is the fourth suite application, hosted at
-`https://scout.redhawkrobotics.org`. Its public surface is currently a branded
-construction page, design documentation, static assets, and `/health`.
-Scouting ingestion and authentication remain unimplemented. The proxy accepts
+`https://scout.redhawkrobotics.org`. Its public surface is currently the read-only
+Events workspace, public event/team provider views, design documentation,
+static assets, and `/health`.
+Private scouting access and ingestion are outside this public rollout. The proxy accepts
 only GET and HEAD requests to those routes; demo, API, and mutation paths
 remain blocked until authorization is implemented.
 
@@ -37,7 +38,23 @@ retain the backup encryption key in the team's password manager.
   existing three apps during the first deployment with the new pipeline.
 - Run the protected main Deploy workflow and use its production approval gate.
 
-The current deployment publishes a construction page and design docs. It does
+The current deployment publishes read-only provider views and design docs. It does
 not provide a working scouting service or the Suite authentication contract.
 Future scouting routes require an explicit review of authorization and the
 Caddy allowlist before they are made public.
+
+
+## Live event providers
+
+Set `HAWK_EYE_TBA_API_KEY` and `HAWK_EYE_MATCH13_API_KEY` as suite Actions
+secrets. The Deploy workflow transports them through the existing encrypted
+configuration channel and passes them only to Hawk Eye as `TBA_API_KEY` and
+`MATCH13_API_KEY`. The optional `HAWK_EYE_MATCH13_ACCOUNT` repository variable
+sets a stable match13 cache/quota namespace and defaults to `default`.
+Interactive installations use the same prefixed settings in `.env`.
+
+Only GET/HEAD requests to valid public event views, team views, and sanitized
+event update endpoints are added to the proxy allowlist. REST, MCP, and all
+mutation requests remain blocked. JWT configuration and private scouting access
+are not activated by this release. Live data requires valid provider keys;
+missing or rejected credentials have distinct recovery states in the app.

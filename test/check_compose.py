@@ -23,7 +23,12 @@ eye = services['hawk-eye']
 assert eye['environment'] == {
     'APP_URL': 'https://scout.ci.example.org', 'HOST': '0.0.0.0',
     'PORT': '3000', 'DATA_DIR': '/data', 'LOG_LEVEL': 'info',
+    'TBA_API_KEY': 'ci-tba', 'MATCH13_API_KEY': 'ci-match13', 'MATCH13_ACCOUNT': 'ci-account',
 }
 assert 'ports' not in eye
 assert eye['volumes'][0]['source'] == 'hawk_eye_data'
 assert eye['volumes'][0]['target'] == '/data'
+
+for service, config in services.items():
+    if service != "hawk-eye":
+        assert not {"TBA_API_KEY", "MATCH13_API_KEY", "MATCH13_ACCOUNT"}.intersection(config.get("environment", {}))

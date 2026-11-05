@@ -115,3 +115,9 @@ Anyone who can merge suite configuration can cause code execution on the host. C
 
 Hawk Eye is included in the same release, configuration validation, encrypted
 backup, container checks, and HTTPS checks. See [hawk-eye.md](hawk-eye.md).
+
+Hawk Eye provider secrets are `HAWK_EYE_TBA_API_KEY` and
+`HAWK_EYE_MATCH13_API_KEY`. `HAWK_EYE_MATCH13_ACCOUNT` is an optional repository
+variable, default `default`, used for stable account-level cache/quota tracking.
+These reach only the Hawk Eye container. Private scouting endpoints remain
+outside the public proxy allowlist.
