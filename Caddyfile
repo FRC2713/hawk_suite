@@ -33,7 +33,7 @@ bot.{$DOMAIN} {
 	reverse_proxy hawk-bot:3000
 }
 
-# Hawk Eye exposes read-only event/provider views and design docs.
+# Hawk Eye exposes event/provider views, bounded TBA refresh, and design docs.
 # Keep scouting APIs and mutation routes blocked until authorization exists.
 scout.{$DOMAIN} {
 	@docs {
@@ -48,6 +48,15 @@ scout.{$DOMAIN} {
 		path_regexp eventViews ^/(events/[0-9]{4}[a-z0-9]+(/(teams/[1-9][0-9]{0,4}|updates[.]json))?|teams/[1-9][0-9]{0,4})/?$
 	}
 	handle @eventViews {
+		reverse_proxy hawk-eye:3000
+	}
+	@tbaRefresh {
+		method POST
+		path_regexp tbaRefresh ^/events/[0-9]{4}[a-z0-9]+/?$
+		# Exact query prevents duplicate action parameters or other mutations.
+		expression {http.request.uri.query} == '_action=refreshTba'
+	}
+	handle @tbaRefresh {
 		reverse_proxy hawk-eye:3000
 	}
 	handle {
