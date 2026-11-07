@@ -52,6 +52,17 @@ for path in /events/2026necmp/ /events/2026necmp/updates.json /events/2026necmp/
   check 200 GET "$path"
   check 503 POST "$path"
 done
+check 200 POST '/events/2026necmp/?_action=refreshTba'
+check 200 POST '/events/2026necmp?_action=refreshTba'
+for path in '/events/2026necmp/?_action=connectScouting' \
+            '/events/2026necmp/?_action=disconnectScouting' \
+            '/events/2026necmp/?_action=refreshTba&_action=disconnectScouting' \
+            '/events/2026necmp/?_action=disconnectScouting&_action=refreshTba' \
+            '/events/2026necmp/teams/2713/?_action=refreshTba' \
+            '/events/2026necmp/updates.json?_action=refreshTba' \
+            '/?_action=refreshTba' '/_actions/refreshTba'; do
+  check 503 POST "$path"
+done
 check 503 GET /events/2026necmp/admin
 check 503 GET /api/v1/reports
 check 503 GET /mcp

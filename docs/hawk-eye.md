@@ -1,5 +1,11 @@
 # Hawk Eye deployment
 
+Event pages allow the public, rate-limited Refresh TBA form through an exact
+POST allowlist: `/events/{eventKey}/?_action=refreshTba`. The app validates event
+keys, enforces the shared cooldown, and honors provider backoff. Other action
+queries, duplicate query parameters, scouting mutations, and API routes remain
+blocked. This recovery action refreshes public provider metadata only.
+
 Hawk Eye is the fourth suite application, hosted at
 `https://scout.redhawkrobotics.org`. Its public surface is currently the read-only
 Events workspace, public event/team provider views, design documentation,
