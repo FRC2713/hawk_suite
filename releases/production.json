@@ -21,5 +21,9 @@
       "digest": "sha256:0197341495e27fca84e98b0d2bd680d73cd9f28cb4c87e85b88bf5c6bd16b79c",
       "contract": 1
     }
+  },
+  "authentication": {
+    "revision": "2849dcf6fe8e4fdf07142c4a521face97161a82c",
+    "digest": "sha256:fc5a56b6944603f7be05b9c346590f1b16ae6f220225254c3bb8aea0e72f79c4"
   }
 }
