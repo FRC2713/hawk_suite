@@ -3,29 +3,27 @@ services:
   caddy:
     image: ${HAWK_AUTH_IMAGE:?Pin the tested authentication image in the release}
     environment:
-      CADDY_CONFIG_REV: auth-identity-headers-v5
+      CADDY_CONFIG_REV: auth-trusted-consumers-v6
     volumes:
       - ${HAWK_AUTH_CONFIG_DIR:?Private release configuration}:/etc/hawk-auth:ro
       - ${HAWK_AUTH_CONFIG_DIR}/Caddyfile:/etc/caddy/Caddyfile:ro
       - ${HAWK_AUTH_ASSET_DIR:?Reviewed branding assets}:/srv/auth-assets:ro
     logging:
       driver: none
-  # Eye verifies the signed Slack session cookie itself. The public key is
-  # not secret; the private signing key never leaves the gateway.
+  # Trust the gateway only on each app's isolated Caddy network. The issuer
+  # supplies portal/logout URLs; team ID must match the authenticated workspace.
   hawk-eye:
     environment:
       HAWK_SUITE_ISSUER: https://apps.${DOMAIN}/
-      HAWK_SUITE_PUBLIC_KEY: ${HAWK_AUTH_PUBLIC_KEY_BASE64:?Rendered by the authenticated release}
-  # Mod and Bot verify that same session themselves, so an administrator who is
-  # already signed in at the gateway is not asked to sign in with Slack a second
-  # time on the app's own /config page. Each app still runs its own admin check
-  # on every request, and those two rules differ. The private signing key stays
-  # on the gateway.
+      HAWK_SUITE_TRUST_PROXY: "true"
+      HAWK_SUITE_TEAM_ID: ${HAWK_AUTH_SLACK_TEAM_ID:?Verified gateway workspace}
   hawk-mod:
     environment:
       HAWK_SUITE_ISSUER: https://apps.${DOMAIN}/
-      HAWK_SUITE_PUBLIC_KEY: ${HAWK_AUTH_PUBLIC_KEY_BASE64:?Rendered by the authenticated release}
+      HAWK_SUITE_TRUST_PROXY: "true"
+      HAWK_SUITE_TEAM_ID: ${HAWK_AUTH_SLACK_TEAM_ID:?Verified gateway workspace}
   hawk-bot:
     environment:
       HAWK_SUITE_ISSUER: https://apps.${DOMAIN}/
-      HAWK_SUITE_PUBLIC_KEY: ${HAWK_AUTH_PUBLIC_KEY_BASE64:?Rendered by the authenticated release}
+      HAWK_SUITE_TRUST_PROXY: "true"
+      HAWK_SUITE_TEAM_ID: ${HAWK_AUTH_SLACK_TEAM_ID:?Verified gateway workspace}
