@@ -57,9 +57,26 @@ Gated scouting routes are the event scouting tab, team scouting views, the
 event pick list page (`/events/{eventKey}/picklist/`) and its live state
 (`picklist.json`), and three exact POST actions with no query string:
 `/_actions/editPickList`, `/_actions/sharePickList`, and
-`/_actions/postPickListMessage`, each with an optional trailing slash. Partner
-sharing (`/picklist/`, join/leave, partner chat) stays blocked because partner
-teams are not workspace members.
+`/_actions/postPickListMessage`, each with an optional trailing slash.
+
+Partner sharing bypasses Slack sign-in. GET/HEAD `/picklist` and `/picklist/`
+serve the join form or shared board; `/picklist/state.json` serves live updates.
+POSTs to `/picklist` or `/picklist/` accept only the exact query
+`_action=joinPickList` or `_action=leavePickList`, with no extra or duplicate
+parameters. POST `/_actions/joinPickList`, `/_actions/leavePickList`, and
+`/_actions/postSharedPickListMessage` accept an optional trailing slash and no
+query string. GET/HEAD assets under `/_astro/` and `/brand/`, plus the favicon,
+also bypass login so partners can load the board.
+
+Eye validates the revocable share code, keeps it in an HttpOnly cookie, rate
+limits joining and chat, and exposes only shared lists, alliances, public
+provider figures, and that share's chat. Private lists and scouting observations
+remain hidden; partners cannot edit the host board. The proxy clears caller
+identity headers and strips Authorization on partner requests. Host pages,
+editing actions, and documentation still require Suite membership. Tests in
+`scripts/test-auth-routing.py` exercise the production template against
+disposable backends, including partner requests and blocked alternatives.
+
 Older Eye images reject the two settings at deploy, so an Eye image from
 FRC2713/hawk-eye 5b93df6 or later must be promoted with them. Any further
 scouting route needs the same review of Eye's authorization and the Caddy

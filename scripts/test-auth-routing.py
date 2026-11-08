@@ -177,12 +177,56 @@ HTTPServer(('0.0.0.0',3000), Handler).serve_forever()
                               'Eye keeps POST '+path+query+' blocked')
                     check(request('scout',path+'extra','POST',signed)[0] == 503,
                           'Eye keeps POST '+path+'extra blocked')
-            for action in ('connectScouting','joinPickList','leavePickList','postPartnerMessage','editPickListExtra'):
+            # Partners authenticate inside Eye using a revocable share code,
+            # not a Suite membership cookie. Exercise every browser request:
+            # invite, assets, form actions, polling, and JSON chat.
+            partner_cookie = {'Cookie': 'hawk-eye-pick-share=ABCDEFGH'}
+            for path in ('/picklist', '/picklist/', '/picklist/?code=ABCD-EFGH',
+                         '/picklist/state.json?since=3', '/_astro/PickListBoard.js',
+                         '/_astro/styles.css', '/_astro/open-sans.woff2',
+                         '/brand/2713-red.svg', '/favicon.svg'):
+                for method in ('GET', 'HEAD'):
+                    check(request('scout',path,method)[0] == 200,
+                          'Eye forwards anonymous '+method+' '+path)
+            partner_posts = ['/picklist/?_action=joinPickList',
+                             '/picklist/?_action=leavePickList',
+                             '/picklist?_action=joinPickList']
+            for action in ('joinPickList', 'leavePickList', 'postSharedPickListMessage'):
+                partner_posts.extend('/_actions/'+action+suffix for suffix in ('', '/'))
+            for path in partner_posts:
+                status, _, body = request('scout',path,'POST',{
+                    **forged, **partner_cookie, 'Authorization': 'Bearer forged'})
+                received = {k.lower(): v for k,v in json.loads(body).items()} if status == 200 else {}
+                check(status == 200, 'Eye forwards partner POST '+path)
+                check(received.get('cookie') == partner_cookie['Cookie'],
+                      'Eye preserves partner cookie '+path)
+                check('authorization' not in received and 'x-hawk-identity' not in received
+                      and not any(k.lower() in received for k in forged),
+                      'Eye strips caller identity on partner POST '+path)
+            for path in ('/picklist/', '/picklist/state.json', '/_astro/PickListBoard.js'):
+                check(request('scout',path,headers={'Cookie': 'AUTHP_ACCESS_TOKEN=invalid'})[0] == 200,
+                      'Eye does not gate partner assets or pages on stale Suite login '+path)
+            for path in ('/picklist/?_action=editPickList',
+                         '/picklist/?_action=joinPickList&_action=editPickList',
+                         '/picklist/?_action=leavePickList&_action=joinPickList',
+                         '/picklist/?_action=joinPickList&extra=1',
+                         '/picklist/?_action=joinPickListExtra',
+                         '/picklist/state.json', '/_astro/PickListBoard.js',
+                         '/_actions/postSharedPickListMessage?extra=1',
+                         '/_actions/postSharedPickListMessage/extra'):
+                check(request('scout',path,'POST')[0] == 503,
+                      'Eye keeps unlisted partner POST '+path+' blocked')
+            for path in ('/picklist/', '/picklist/state.json', '/_actions/joinPickList',
+                         '/_actions/leavePickList', '/_actions/postSharedPickListMessage'):
+                for method in ('PUT', 'PATCH', 'DELETE', 'OPTIONS'):
+                    check(request('scout',path,method)[0] == 503,
+                          'Eye keeps '+method+' '+path+' blocked')
+            for action in ('connectScouting','postPartnerMessage','editPickListExtra'):
                 for suffix in ('', '/'):
                     path = '/_actions/'+action+suffix
                     check(request('scout',path,'POST',signed)[0] == 503,
                           'Eye keeps POST '+path+' blocked')
-            for path in ('/picklist/', '/picklist/state.json', '/events/2026casj/picklist/extra'):
+            for path in ('/picklist/extra', '/picklist/state.json/extra', '/events/2026casj/picklist/extra'):
                 check(request('scout',path,headers=signed)[0] == 503,'Eye keeps GET '+path+' blocked')
             check(b'Test environment' not in request('apps','/auth/login')[2],'production login branding')
             print(f'{count} routing checks passed; no real app sessions or browser iframe behavior tested.')
