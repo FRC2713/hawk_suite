@@ -1,4 +1,4 @@
-name: Authentication candidate
+name: Build authentication gateway
 
 on:
   workflow_dispatch:

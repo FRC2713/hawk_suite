@@ -22,7 +22,7 @@ that routes a subdomain to each, environment templates, and setup tooling.
 Hawk Eye serves read-only events, team provider views, and docs at `scout.<domain>`.
 See [its deployment notes](docs/hawk-eye.md).
 
-Mod, Bot, and Eye's read-only pages sit behind a shared Caddy/Slack
+Mod, Bot, and Eye's event/team views and docs sit behind a shared Caddy/Slack
 authentication gateway; see
 [the authentication gateway section](docs/continuous-deployment.md#authentication-gateway-releases).
 

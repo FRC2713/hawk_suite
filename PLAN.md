@@ -53,7 +53,7 @@ image; hawk_suite composes them.
 | [hawk-shop](https://github.com/FRC2713/hawk-shop) | `ghcr.io/frc2713/hawk-shop` | 3000 | SQLite + uploaded images in `/data` | Onshape OAuth + API |
 | [hawk-mod](https://github.com/FRC2713/hawk-mod) | `ghcr.io/frc2713/hawk-mod` | 3000 | SQLite in `/data` | Slack (events, OAuth) |
 | [hawk-bot](https://github.com/FRC2713/hawk-bot) | `ghcr.io/frc2713/hawk-bot` | 3000 | SQLite in `/data` | Slack (commands, events, OAuth) |
-| [hawk-eye](https://github.com/FRC2713/hawk-eye) | `ghcr.io/frc2713/hawk-eye` | 3000 | SQLite in `/data` | Reviewed release; read-only pages gated by the auth gateway |
+| [hawk-eye](https://github.com/FRC2713/hawk-eye) | `ghcr.io/frc2713/hawk-eye` | 3000 | SQLite in `/data` | Reviewed release; event/team views and docs require Slack sign-in |
 
 All four apps publish `linux/amd64` images on every push to `main` through the
 shared `.github/workflows/publish-app.yml` (called from each app's `docker.yml`,
@@ -83,7 +83,7 @@ One Linode, one compose stack:
   particular its trust model, which is the thing to read before granting anyone
   merge rights here.
 - **Authentication gateway.** A Caddy/caddy-security layer gates Mod, Bot, and
-  Eye's read-only pages behind a shared Slack sign-in; Shop keeps its own
+  Eye's event/team views and docs behind a shared Slack sign-in; Shop keeps its own
   Onshape login because the gateway's SameSite=Lax cookie breaks the Onshape
   iframe. See `docs/continuous-deployment.md#authentication-gateway-releases`
   for the release/recovery contract.
@@ -104,9 +104,9 @@ disagrees.
 
 ## Status
 
-The suite composes four apps. Hawk Eye currently exposes its construction
-page and docs; scouting remains unimplemented. Mod, Bot, and Eye's read-only
-pages sit behind the Caddy/Slack authentication gateway; Shop does not. See
+The suite composes four apps. Hawk Eye exposes event/team views and docs;
+scouting remains unimplemented. Authenticated releases require Slack sign-in
+for Mod, Bot, and Eye. Shop keeps its Onshape login. See
 [docs/hawk-eye.md](docs/hawk-eye.md) and
 [docs/continuous-deployment.md](docs/continuous-deployment.md#authentication-gateway-releases).
 Remaining work:

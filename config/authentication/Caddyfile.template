@@ -66,7 +66,7 @@
 }
 (auth-portal) {
     header Cache-Control "no-store"
-    respond /auth/api/refresh_token "Sign in again to renew your session." 401
+    respond /auth/api/refresh_token "Sign in again to continue." 401
     route /auth* {
         authenticate with suite
     }
@@ -76,7 +76,7 @@ apps.__DOMAIN__ {
     import auth-assets
     import auth-portal
     redir / /auth/portal 302
-    respond "Not found" 404
+    respond "Page not found." 404
 }
 }
 (eye-protected) {

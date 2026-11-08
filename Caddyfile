@@ -1,3 +1,7 @@
+# Base configuration for interactive setup and local Compose. Reviewed auth releases
+# replace this mount with a rendered config/authentication/Caddyfile.template via
+# config/authentication/compose.yaml; see docs/continuous-deployment.md.
+#
 # Caddy provisions Let's Encrypt certificates automatically for a real DOMAIN.
 # With DOMAIN=localhost it issues its own local certificates instead — fine for
 # poking at hawk-shop, but the two Slack apps need publicly reachable HTTPS
@@ -64,6 +68,6 @@ scout.{$DOMAIN} {
 	}
 	# Return a controlled response if the app is unavailable.
 	handle_errors {
-		respond "Hawk Eye documentation is not available yet." 503
+		respond "Hawk Eye is temporarily unavailable." 503
 	}
 }

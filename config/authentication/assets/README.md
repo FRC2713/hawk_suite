@@ -1,6 +1,6 @@
-# Staging portal assets
+# Authentication portal assets
 
-Login and portal template hooks are adapted from go-authcrunch commit
+The login and portal templates in `config/authentication/` use hooks are adapted from go-authcrunch commit
 `97408097f0d39c58be16c80131486edbbb358798`, `pkg/authn/ui/page_templates/basic/`.
 The login uses provider-generated endpoints and the portal uses native logout.
 

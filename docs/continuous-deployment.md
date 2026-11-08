@@ -136,13 +136,17 @@ outside the public proxy allowlist.
 
 ## Authentication gateway releases
 
-Caddy gates Mod, Bot, and Eye's read-only pages behind a shared Slack sign-in.
+Caddy gates Mod, Bot, and Eye's event/team views and docs behind a shared Slack sign-in.
 Shop keeps its own Onshape login and is not behind the gateway: the gateway's
 SameSite=Lax cookie would break the Onshape iframe, so excluding Shop preserves
 its existing direct and embedded access. Its card remains in the authenticated
 portal. No suite membership grants any
 app's admin rights; each app keeps its own permissions. Signing out of the
 gateway does not sign out of individual apps.
+
+Hawk Eye retains its existing GET/HEAD route allowlist. Gateway membership
+does not enable scouting APIs or writes; those require app-level authorization
+and a separate routing change.
 
 Sign-in is at `https://apps.<domain>/auth/`. The session cookie is scoped to
 the bare domain, Secure, HttpOnly, SameSite=Lax, with a 15-minute access
@@ -154,7 +158,7 @@ apps do not receive or trust suite identity today.
 | `apps` | Native sign-in/callback routes, public branding | Portal requires login; unknown paths 404 |
 | `mod`, `bot` | POST `/slack/events`; GET `/slack/oauth_redirect`, `/auth/slack/callback`; GET/HEAD `/health` | Gateway membership required, then the existing app login/permissions |
 | `shop` | Entire host bypasses the suite login gate | Existing Onshape login and app permissions |
-| `scout` | GET/HEAD `/health` | Approved read-only pages require gateway membership; other routes 503 |
+| `scout` | GET/HEAD `/health` | Event/team views, docs, and their assets require gateway membership; other routes 503 |
 
 The Deploy plan requires an `authentication` entry in the release manifest;
 its absence intentionally blocks deployment until a tested gateway image is
@@ -167,7 +171,10 @@ authentication.
 
 ### Publishing and promoting the gateway image
 
-1. Run the **Authentication candidate** workflow with `publish=true` on the
+A candidate is a built and tested image awaiting release review. Publishing it
+to GHCR does not deploy it; pinning its digest and running Deploy are separate steps.
+
+1. Run the **Build authentication gateway** workflow with `publish=true` on the
    reviewed revision. It builds and tests native amd64/arm64 images and
    publishes only the tested archives. Record the suite source SHA and the
    published **index** digest from its summary.
@@ -176,7 +183,7 @@ authentication.
 
    ```json
    "authentication": {
-     "revision": "<40-character suite SHA from the candidate workflow>",
+     "revision": "<40-character suite SHA from the build workflow>",
      "digest": "sha256:<64-character published index digest>"
    }
    ```
@@ -199,6 +206,20 @@ authentication.
    again. Confirm Shop's direct and embedded Onshape flows are unaffected.
 
 ### Private runtime configuration and recovery
+
+The root `Caddyfile` is the base configuration for interactive setup and local
+Compose. Authenticated production releases use a complete replacement:
+
+1. `scripts/auth_config.py` renders `config/authentication/Caddyfile.template`
+   with the domain and Actions credentials into the private release directory.
+2. `scripts/deploy.py` adds `config/authentication/compose.yaml` to the base
+   Compose configuration. It selects the pinned gateway image and replaces the
+   `/etc/caddy/Caddyfile` bind mount with the rendered file.
+3. Deployment validates that configuration before applying it, then reloads
+   Caddy and checks the protected routes.
+
+Nothing is appended to or rewritten in the root `Caddyfile`. The maintenance
+file is rendered alongside the production configuration for emergency use.
 
 Each release stores mode-600 auth files (signing keys, rendered Caddyfile,
 portal templates) under `.deploy/config/<release-id>/auth`, outside the clean

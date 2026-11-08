@@ -59,4 +59,4 @@ def prepare(target, directory, values):
         path.write_bytes(content)
         os.chmod(path, 0o600)
     return {'HAWK_AUTH_CONFIG_DIR': str(directory),
-            'HAWK_AUTH_ASSET_DIR': str(Path(target) / 'test/authentication/staging/branding')}
+            'HAWK_AUTH_ASSET_DIR': str(Path(target) / 'config/authentication/assets')}

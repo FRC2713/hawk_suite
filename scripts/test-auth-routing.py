@@ -71,7 +71,7 @@ HTTPServer(('0.0.0.0',3000), Handler).serve_forever()
                 ('backend', sum((['--network-alias', app] for app in ('hawk-eye','hawk-shop','hawk-mod','hawk-bot')), []) +
                  ['-v',str(directory)+':/fixture:ro','python:3.14-alpine','python','/fixture/backend.py']),
                 ('gateway', ['-p','127.0.0.1::8080','-v',str(directory)+':/etc/hawk-auth:ro',
-                 '-v',str(ROOT/'test/authentication/staging/branding')+':/srv/auth-assets:ro',
+                 '-v',str(ROOT/'config/authentication/assets')+':/srv/auth-assets:ro',
                  'hawk-auth-candidate:local','caddy','run','--config','/etc/hawk-auth/Caddyfile','--adapter','caddyfile'])]:
                 cid = name+'-'+suffix
                 containers.append(cid)
