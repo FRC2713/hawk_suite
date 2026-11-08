@@ -42,7 +42,12 @@ only disposable volumes and a unique project label. Validate Caddy and workflow
 syntax before publishing changes.
 
 `./setup.sh` and `./update.sh` are the interactive installation path.
-Production uses the reviewed Deploy workflow. `python3 scripts/doctor.py
+Production uses the reviewed Deploy workflow.
+
+To ship an app change, use the `/ship <app>` skill. By hand, the steps are:
+wait for the app's publish run, then `python3 scripts/promote.py <app>[@sha]`
+on a branch, then PR and merge. Merging queues Deploy, and a `production`
+reviewer approves it. `python3 scripts/doctor.py
 --domain <domain>` performs read-only routing, registry and version checks.
 
 ## Architecture

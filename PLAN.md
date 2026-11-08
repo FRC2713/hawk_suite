@@ -141,7 +141,7 @@ page and docs; scouting and authentication remain unimplemented. See
 
 ## Reviewed release implementation
 
-The release pipeline is implemented in `.github/workflows/propose-release.yml`,
+The release pipeline is implemented in `scripts/promote.py`,
 `.github/workflows/deploy.yml`, `scripts/hawk-deploy` and `scripts/deploy.py`.
 Production uses digest entries in `releases/production.json`. The initial
 contract-0 entries are a historical baseline; promote all four contract-v1
