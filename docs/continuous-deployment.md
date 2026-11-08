@@ -1,22 +1,34 @@
 # Reviewed releases
 
-Production ships the four image digests in `releases/production.json`, together with an exact suite commit. The release proposal and the deployment approval are separate reviews. Merging an app change publishes a tested image and asks the suite to propose that image. Merging the suite PR does not deploy it.
+Production ships the four image digests in `releases/production.json`, together with an exact suite commit. The release PR and the deployment approval are separate reviews. Merging an app change publishes a tested image. Promoting it is a suite PR, and merging that PR queues a Deploy that waits for a production reviewer.
 
 ```text
 app main → reusable CI → build candidate → fresh and upgrade smoke tests
-  → publish exact candidate → propose suite release PR
-  → review and merge → Run Deploy on main → production approval
+  → publish sha-<commit> → scripts/promote.py → release PR → review and merge
+  → Deploy queued on main → production approval
   → validate and pull → encrypted backup → apply → verify → receipt
 ```
+
+## Promoting an image
+
+```bash
+python3 scripts/promote.py hawk-eye            # the app's current main
+python3 scripts/promote.py hawk-shop@91efbfe   # a specific commit on main
+```
+
+The script resolves the app's `sha-<commit>` tag to its digest and edits the release file. That tag is pushed only after the publisher's smoke tests pass, and the commit must be on the app's main. It needs `gh` with the `read:packages` scope (`gh auth refresh -h github.com -s read:packages`, once). Commit the change on a branch and open a PR. In Claude Code, `/ship <app>` runs the whole sequence and leaves the production approval to a reviewer.
+
+The script does not repeat the host's checks. Before changing anything, Deploy verifies each image's revision label and configuration contract.
+
+Deploy is queued by pushes to main that change `releases/`, `docker-compose.yml`, `Caddyfile`, `portal/` or the host-side deploy scripts. It can also be started by hand from main.
 
 ## One-time migration from the old workflow
 
 1. Merge this suite change first. Its initial release file records the existing published digests with `contract: 0`. Those are a baseline, not approved candidates for the new deployment protocol. Deploy refuses them before touching the running stack.
-2. Create a GitHub App installed on `FRC2713/hawk_suite`, with Contents write and Pull requests write. Set `HAWK_SUITE_APP_ID` as an Actions variable and `HAWK_SUITE_APP_PRIVATE_KEY` as a secret in the suite and all three app repositories. The automation requests short-lived installation tokens restricted to the suite. The receiver reads public app workflow runs to verify publication. If these repos become private, grant the receiver Actions read and Contents read on those repos using a separate read-only installation.
-3. Merge the three app workflow changes. Each publisher verifies, builds and tests an image, then opens a release PR. Merge the three existing-app proposals plus the Hawk Eye release before the first new Deploy run. If a proposal job fails, retry that job, not the completed publisher.
-4. Generate `BACKUP_ENCRYPTION_KEY` once with `openssl rand -base64 32`. Save it as a suite production secret and retain a copy in the password manager. It is separate from both apps' encryption keys. Keep old backup keys if rotating it.
-5. The host owner installs the new forced-command launcher once. Existing hosts can use the launcher-only command below, keeping their existing SSH key and volumes. Use `scripts/provision-host.sh` for a fresh host. The new transport is JSON; the legacy launcher cannot process it. The launcher remains root-owned at `/usr/local/bin/hawk-deploy` and only authorizes an exact revision of main. Runtime deployment code comes from that reviewed revision's worktree.
-6. Confirm the `production` environment has required reviewers, permits only main, and protects its secrets. Enable required CI and narrow merge rights on the suite. Run Deploy from main, inspect the proposed release, then approve it.
+2. Merge the app workflow changes. Each publisher verifies, builds and tests an image. Promote all four apps with `scripts/promote.py` before the first new Deploy run.
+3. Generate `BACKUP_ENCRYPTION_KEY` once with `openssl rand -base64 32`. Save it as a suite production secret and retain a copy in the password manager. It is separate from both apps' encryption keys. Keep old backup keys if rotating it.
+4. The host owner installs the new forced-command launcher once. Existing hosts can use the launcher-only command below, keeping their existing SSH key and volumes. Use `scripts/provision-host.sh` for a fresh host. The new transport is JSON; the legacy launcher cannot process it. The launcher remains root-owned at `/usr/local/bin/hawk-deploy` and only authorizes an exact revision of main. Runtime deployment code comes from that reviewed revision's worktree.
+5. Confirm the `production` environment has required reviewers, permits only main, and protects its secrets. Enable required CI and narrow merge rights on the suite. Inspect the release shown by the queued Deploy run, then approve it.
 
 For an existing host, run this in its root console to update only the
 launcher. The pinned revision contains the new JSON launcher. This does not
@@ -52,9 +64,8 @@ Retain existing credentials. The complete production secret names are:
 | `HAWK_BOT_TOKEN_ENCRYPTION_KEY` | hawk-bot's encryption key |
 | `HAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64` | Required hawk-bot Calendar service account key |
 | `BACKUP_ENCRYPTION_KEY` | Separate backup key, minimum 32 characters |
-| `HAWK_SUITE_APP_PRIVATE_KEY` | Release automation App, repository scope |
 
-Variables are `DOMAIN`, `LOG_MODE`, `TZ`, `MANAGED_USERGROUPS`, `REPORT_TIME`, `LIFECYCLE_SHEET_ID`, `ONSHAPE_IFRAME_EMBED` and `HAWK_SUITE_APP_ID`. Defaults are defined in the workflow. `REPORT_TIME` is an HH:MM seed, not cron; the saved `/hawkmod config` value wins. `MANAGED_USERGROUPS` is the administrator-editable group allowlist. Student and adult roles come from the lifecycle sheet. The old `STUDENT_USERGROUP`, `ADULT_USERGROUP`, `DIGEST_CRON` and `QUARTERLY_CRON` knobs are retired.
+Variables are `DOMAIN`, `LOG_MODE`, `TZ`, `MANAGED_USERGROUPS`, `REPORT_TIME`, `LIFECYCLE_SHEET_ID` and `ONSHAPE_IFRAME_EMBED`. Defaults are defined in the workflow. `REPORT_TIME` is an HH:MM seed, not cron; the saved `/hawkmod config` value wins. `MANAGED_USERGROUPS` is the administrator-editable group allowlist. Student and adult roles come from the lifecycle sheet. The old `STUDENT_USERGROUP`, `ADULT_USERGROUP`, `DIGEST_CRON` and `QUARTERLY_CRON` knobs are retired.
 
 Private GHCR images are pulled using the approved workflow job's short-lived
 `GITHUB_TOKEN`, limited to Packages read. The transport sends it through SSH
@@ -109,7 +120,7 @@ Doctor checks DNS, HTTPS, expected app revisions and access to every pinned imag
 
 ## Trust and permissions
 
-A repository-dispatch request is a release suggestion, not a deployment authorization. The receiver allowlists apps, validates revision and digest formats, checks a successful main publisher job, rejects superseded source revisions, verifies the SHA tag and image revision, and opens a PR changing only that app's entry. `repository_dispatch` requires Contents write, not Actions write.
+A release PR is a suggestion, not a deployment authorization. Merging it queues Deploy, but only a production reviewer's approval runs it. Release digests come from `sha-<commit>` tags that only the app's main publisher pushes, after its smoke tests. The host independently checks every image's revision label and configuration contract before applying.
 
 Anyone who can merge suite configuration can cause code execution on the host. Compose can mount host paths, and the deploy account's Docker membership is root-equivalent. Branch protection and narrow merge rights remain essential. Application-image code can access its own app's production state, so app CI and review remain part of the trust model too. Production approval remains in place.
 

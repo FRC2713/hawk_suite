@@ -129,7 +129,7 @@ recreatable by reinstalling, and not sensitive in the same way.
 
 ## Pinned production releases
 
-The reviewed deployment path now uses `releases/production.json`, immutable image digests and an exact suite revision. App publication proposes release PRs automatically. Production approval remains separate. See [the migration and recovery guide](docs/continuous-deployment.md) before the first rollout: existing images must be replaced by contract-v1 candidates, the host launcher must be upgraded once, and release automation plus the backup key must be configured.
+The reviewed deployment path now uses `releases/production.json`, immutable image digests and an exact suite revision. Ship an app with `scripts/promote.py <app>` and a release PR (or `/ship <app>` in Claude Code). Merging queues Deploy, which waits for production approval. See [the migration and recovery guide](docs/continuous-deployment.md) before the first rollout: existing images must be replaced by contract-v1 candidates, the host launcher must be upgraded once, and the backup key must be configured.
 
 `python3 scripts/doctor.py --domain <domain>` checks routing and deployed revisions. The interactive `setup.sh` path is still available for installations without Actions; `update.sh` refuses to bypass a host already managed by reviewed releases.
 
