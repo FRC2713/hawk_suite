@@ -18,10 +18,15 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def release():
-    data = json.loads((ROOT / 'releases/production.json').read_text())
-    for item in data['apps'].values():
-        item['contract'] = 1
-    return data
+    # Start without authentication; authentication tests add it explicitly.
+    # Production promotions must not change the scenario under test.
+    return {
+        'schema': 1,
+        'apps': {
+            app: dict(revision='1' * 40, digest='sha256:' + 'a' * 64, contract=1)
+            for app in APPS
+        },
+    }
 
 
 class ReleaseTests(unittest.TestCase):
