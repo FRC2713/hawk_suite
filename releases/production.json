@@ -7,18 +7,18 @@
       "contract": 1
     },
     "hawk-mod": {
-      "revision": "b6d5334a6ecdab33e826dc526a1ae9ec1c6670f0",
-      "digest": "sha256:cfe1a892fe6be6124bae9aa1b66540ca0bce385345e7f10539c38aff52dfbc93",
+      "revision": "94fccd102359b9f0468d5c1133ac0f4476f9a740",
+      "digest": "sha256:bab720b3967084d38859b5ace7967fdd17c21cef8ee1d50bda26daeb41c1a8cb",
       "contract": 1
     },
     "hawk-bot": {
-      "revision": "3093e5791490015e50a4c29406373b4cec06cf8d",
-      "digest": "sha256:854dd83368521b55888d93eb734f78075f6d864b5f9d489e13c094f2babdf32f",
+      "revision": "937c0709821901115b983e7a38adc87dbd469be5",
+      "digest": "sha256:140a295e5945716529a3203e2d1a20af4fc2ffd99a0047375e7be42dba4afced",
       "contract": 1
     },
     "hawk-eye": {
-      "revision": "8fc613b0c339dc4144d1ed97a0999fdbab4271bf",
-      "digest": "sha256:b68a305c58cbd0b88b64d66eb5571a89dc5172b7165ae49997ac9f31b401ee9f",
+      "revision": "19df30bded32a35617c51357781798d749801041",
+      "digest": "sha256:8a7e025f00ee4fd7e43e4994e45c485f0c5064e0d7e27be5d9f15f19eb13e353",
       "contract": 1
     }
   },
