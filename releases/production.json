@@ -17,8 +17,8 @@
       "contract": 1
     },
     "hawk-eye": {
-      "digest": "sha256:38903f89a41f906896d0971fcb552d64e42e53f66297038bb5c90f5be41303cc",
-      "revision": "14bf23b8b279ee892dbda1587b9d8203de6509d5",
+      "revision": "e5503b2e8100932aa3c104b8d2c9f7d59e176276",
+      "digest": "sha256:0197341495e27fca84e98b0d2bd680d73cd9f28cb4c87e85b88bf5c6bd16b79c",
       "contract": 1
     }
   }
