@@ -3,7 +3,7 @@ services:
   caddy:
     image: ${HAWK_AUTH_IMAGE:?Pin the tested authentication image in the release}
     environment:
-      CADDY_CONFIG_REV: auth-identity-headers-v4
+      CADDY_CONFIG_REV: auth-identity-headers-v5
     volumes:
       - ${HAWK_AUTH_CONFIG_DIR:?Private release configuration}:/etc/hawk-auth:ro
       - ${HAWK_AUTH_CONFIG_DIR}/Caddyfile:/etc/caddy/Caddyfile:ro

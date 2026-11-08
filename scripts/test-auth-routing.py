@@ -162,16 +162,28 @@ HTTPServer(('0.0.0.0',3000), Handler).serve_forever()
                 check(request('scout',path,headers=signed)[0] == 200,'Eye forwards signed GET '+path)
                 check(request('scout',path)[0] in (302,303,307,401,403),'Eye gates anonymous GET '+path)
             for action in ('editPickList','sharePickList','postPickListMessage'):
-                status, _, body = request('scout','/_actions/'+action,'POST',signed)
-                check(status == 200 and 'AUTHP_ACCESS_TOKEN='+valid in json.loads(body).get('Cookie',''),
-                      'Eye forwards signed pick list action '+action)
-                check(request('scout','/_actions/'+action,'POST')[0] in (302,303,307,401,403),
-                      'Eye gates anonymous pick list action '+action)
-            for path, method in [('/_actions/editPickList?_action=x','POST'),('/_actions/editPickList/extra','POST'),
-                                 ('/_actions/connectScouting','POST'),('/_actions/joinPickList','POST'),
-                                 ('/_actions/editPickList','GET'),('/picklist/','GET'),('/picklist/state.json','GET'),
-                                 ('/events/2026casj/picklist/extra','GET')]:
-                check(request('scout',path,method,signed)[0] == 503,'Eye keeps '+method+' '+path+' blocked')
+                for suffix in ('', '/'):
+                    path = '/_actions/'+action+suffix
+                    status, _, body = request('scout',path,'POST',signed)
+                    check(status == 200 and 'AUTHP_ACCESS_TOKEN='+valid in json.loads(body).get('Cookie',''),
+                          'Eye forwards signed POST '+path)
+                    check(request('scout',path,'POST')[0] in (302,303,307,401,403),
+                          'Eye gates anonymous POST '+path)
+                    for method in ('GET','HEAD','PUT','PATCH','DELETE','OPTIONS'):
+                        check(request('scout',path,method,signed)[0] == 503,
+                              'Eye keeps '+method+' '+path+' blocked')
+                    for query in ('?_action=x', '?since=3', '?x=', '?x=1&x=2'):
+                        check(request('scout',path+query,'POST',signed)[0] == 503,
+                              'Eye keeps POST '+path+query+' blocked')
+                    check(request('scout',path+'extra','POST',signed)[0] == 503,
+                          'Eye keeps POST '+path+'extra blocked')
+            for action in ('connectScouting','joinPickList','leavePickList','postPartnerMessage','editPickListExtra'):
+                for suffix in ('', '/'):
+                    path = '/_actions/'+action+suffix
+                    check(request('scout',path,'POST',signed)[0] == 503,
+                          'Eye keeps POST '+path+' blocked')
+            for path in ('/picklist/', '/picklist/state.json', '/events/2026casj/picklist/extra'):
+                check(request('scout',path,headers=signed)[0] == 503,'Eye keeps GET '+path+' blocked')
             check(b'Test environment' not in request('apps','/auth/login')[2],'production login branding')
             print(f'{count} routing checks passed; no real app sessions or browser iframe behavior tested.')
         finally:
