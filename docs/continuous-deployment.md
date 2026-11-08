@@ -3,8 +3,9 @@
 Production ships the four image digests in `releases/production.json`, together with an exact suite commit. The release PR and the deployment approval are separate reviews. Merging an app change publishes a tested image. Promoting it is a suite PR, and merging that PR queues a Deploy that waits for a production reviewer.
 
 ```text
-app main → reusable CI → build candidate → fresh and upgrade smoke tests
-  → publish sha-<commit> → scripts/promote.py → release PR → review and merge
+app main → app CI, alongside: build candidate → fresh smoke test
+  → upgrade smoke test from the production digest
+  → (CI and smoke tests pass) publish sha-<commit> → scripts/promote.py → release PR → review and merge
   → Deploy queued on main → production approval
   → validate and pull → encrypted backup → apply → verify → receipt
 ```

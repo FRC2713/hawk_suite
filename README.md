@@ -113,9 +113,10 @@ docs/                  deploy-linode.md, continuous-deployment.md
 .github/workflows/     ci.yml validates PRs; deploy.yml ships main
 ```
 
-Hawk Shop, Mod, and Bot publish `ghcr.io/frc2713/<app>` through `docker.yml`
-on pushes to `main`. Hawk Eye uses `image.yml` with explicit publication,
-verification, and immutable SHA tags. If those packages are private,
+All four apps publish `ghcr.io/frc2713/<app>` on pushes to `main` (Hawk Eye's
+`image.yml`, the others' `docker.yml`). Each is a thin caller of this repo's
+`.github/workflows/publish-app.yml`, which builds and smoke tests the image
+while the app's CI runs, then pushes `sha-<commit>` once CI passes. If those packages are private,
 `setup.sh` will offer to `docker login ghcr.io` with a `read:packages` token.
 
 ## Data

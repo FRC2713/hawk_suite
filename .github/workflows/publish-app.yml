@@ -1,0 +1,140 @@
+name: Publish app image
+
+# Shared by hawk-shop, hawk-mod, hawk-bot and hawk-eye. Each app calls it
+# twice so the slow part can overlap its own CI:
+#
+#   verify:  uses: ./.github/workflows/ci.yml
+#   build:   stage: build                  (runs alongside verify)
+#   push:    stage: push, needs: [verify, build]
+#
+# A single call cannot do this: a called workflow cannot wait on a sibling job
+# in its caller, so the gate has to be the caller's `needs`. The build stage
+# hands the smoke-tested image to the push stage as an artifact, so the bytes
+# that are pushed are the bytes that were tested.
+#
+# GitHub validates each call against every job in this file, skipped ones
+# included, so both calls must allow `contents: read` and `packages: write`.
+# Each job below narrows its own token; only push can write.
+#
+# Tags: sha-<commit> always (hawk_suite's scripts/promote.py resolves it to a
+# digest), main and latest on pushes to main, <version> on v<version> tags.
+
+on:
+  workflow_call:
+    inputs:
+      app:
+        description: Image name under ghcr.io/frc2713; must match the calling repository.
+        required: true
+        type: string
+      stage:
+        description: "build (build once and smoke test) or push (publish the tested image)"
+        required: true
+        type: string
+
+permissions: {}
+
+env:
+  CANDIDATE: hawk-candidate:${{ github.sha }}
+  ARTIFACT: ${{ inputs.app }}-candidate
+
+jobs:
+  build:
+    if: inputs.stage == 'build'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Check inputs
+        env:
+          APP: ${{ inputs.app }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          [[ $APP =~ ^hawk-[a-z]+$ ]] || { echo "Unexpected app name: $APP" >&2; exit 1; }
+          [[ ${REPOSITORY,,} == "frc2713/$APP" ]] || { echo "$APP called from $REPOSITORY" >&2; exit 1; }
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      # The upgrade smoke test pulls the production image, which may be private.
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build candidate once
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          platforms: linux/amd64
+          tags: ${{ env.CANDIDATE }}
+          build-args: APP_REVISION=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Smoke test candidate with a disposable database
+        env:
+          IMAGE: ${{ env.CANDIDATE }}
+          REVISION: ${{ github.sha }}
+        run: |
+          bash scripts/smoke-image.sh
+          # Upgrades from the digest in hawk_suite's releases/production.json.
+          if [[ -f scripts/smoke-upgrade.sh ]]; then bash scripts/smoke-upgrade.sh; fi
+      - name: Save tested image
+        run: docker save "$CANDIDATE" -o "$RUNNER_TEMP/candidate.tar"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT }}
+          path: ${{ runner.temp }}/candidate.tar
+          retention-days: 1
+          compression-level: 1
+          if-no-files-found: error
+
+  push:
+    if: inputs.stage == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      packages: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT }}
+          path: ${{ runner.temp }}
+      - name: Load tested image
+        run: docker load -i "$RUNNER_TEMP/candidate.tar"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish the tested image
+        env:
+          APP: ${{ inputs.app }}
+          REVISION: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          # promote.py trusts sha-<commit> tags, so only main and release tags
+          # may push them.
+          if [[ $GITHUB_REF != refs/heads/main && $GITHUB_REF != refs/tags/v* ]]; then
+            echo "Refusing to publish from $GITHUB_REF; run from main or a v* tag." >&2
+            exit 1
+          fi
+          image="ghcr.io/frc2713/$APP"
+          docker tag "$CANDIDATE" "$image:sha-$REVISION"
+          docker push "$image:sha-$REVISION"
+          digest=$(docker buildx imagetools inspect "$image:sha-$REVISION" --format '{{.Manifest.Digest}}')
+          [[ $digest =~ ^sha256:[a-f0-9]{64}$ ]]
+          echo "Published $image@$digest from $REVISION" >> "$GITHUB_STEP_SUMMARY"
+          echo "Promote with: scripts/promote.py $APP@$REVISION" >> "$GITHUB_STEP_SUMMARY"
+          # Moving aliases. Production pins the digest; interactive installs
+          # can keep using latest.
+          if [[ $GITHUB_REF == refs/heads/main ]]; then
+            aliases=(main latest)
+          else
+            aliases=("${GITHUB_REF#refs/tags/v}")
+          fi
+          for tag in "${aliases[@]}"; do
+            docker tag "$CANDIDATE" "$image:$tag"
+            docker push "$image:$tag"
+          done

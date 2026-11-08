@@ -58,10 +58,10 @@ image; hawk_suite composes them.
 | [hawk-bot](https://github.com/FRC2713/hawk-bot) | `ghcr.io/frc2713/hawk-bot` | 3000 | SQLite in `/data` | Slack (commands, events, OAuth) |
 | [hawk-eye](https://github.com/FRC2713/hawk-eye) | `ghcr.io/frc2713/hawk-eye` | 3000 | SQLite in `/data` | Reviewed release; authentication pending |
 
-Hawk Shop, Mod, and Bot publish `linux/amd64` images from a `docker.yml` workflow on every
-push to `main`, carry their own `HEALTHCHECK`, run as a non-root user, and
-apply migrations on boot. Hawk Eye publishes verified SHA-tagged images through
-`image.yml` and uses the same runtime and release contract.
+All four apps publish `linux/amd64` images on every push to `main` through the
+shared `.github/workflows/publish-app.yml` (called from each app's `docker.yml`,
+or `image.yml` for Hawk Eye), carry their own `HEALTHCHECK`, run as a non-root
+user, and apply migrations on boot.
 
 hawk-mod and hawk-bot are separate Slack apps sharing one workspace. hawk-bot
 requests no user scopes and holds no per-person tokens: everything it does, it
