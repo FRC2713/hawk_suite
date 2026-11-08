@@ -93,14 +93,17 @@ apps.__DOMAIN__ {
     respond "Page not found." 404
 }
 }
-(eye-protected) {
-    authorize with suite
+(eye-proxy) {
     # Cookies pass through, like Mod and Bot: Hawk Eye verifies the signed
     # AUTHP_ACCESS_TOKEN session itself and reads its own app cookies.
     reverse_proxy hawk-eye:3000 {
         header_up -Authorization
         header_up -X-Hawk-Identity
     }
+}
+(eye-protected) {
+    authorize with suite
+    import eye-proxy
 }
 scout.__DOMAIN__ {
   route {
@@ -112,9 +115,42 @@ scout.__DOMAIN__ {
     handle @health {
         reverse_proxy hawk-eye:3000
     }
+    # Static assets contain no scouting data and are needed by partner boards.
+    @eyeAssets {
+        method GET HEAD
+        path /_astro/* /brand/* /favicon.ico /favicon.svg
+    }
+    route @eyeAssets {
+        import eye-proxy
+    }
+    # Eye checks the revocable share-code cookie and filters the partner view.
+    # A partner does not need a Slack workspace membership.
+    @partnerPages {
+        method GET HEAD
+        path /picklist /picklist/ /picklist/state.json
+    }
+    route @partnerPages {
+        import eye-proxy
+    }
+    @partnerForms {
+        method POST
+        path /picklist /picklist/
+        expression {http.request.uri.query} == '_action=joinPickList' || {http.request.uri.query} == '_action=leavePickList'
+    }
+    route @partnerForms {
+        import eye-proxy
+    }
+    @partnerActions {
+        method POST
+        path_regexp partnerActions ^/_actions/(joinPickList|leavePickList|postSharedPickListMessage)/?$
+        expression {http.request.uri.query} == ''
+    }
+    route @partnerActions {
+        import eye-proxy
+    }
     @pages {
         method GET HEAD
-        path / /docs/* /_astro/* /pagefind/* /brand/* /favicon.ico /favicon.svg
+        path / /docs/* /pagefind/*
     }
     route @pages {
         import eye-protected
@@ -127,8 +163,7 @@ scout.__DOMAIN__ {
         import eye-protected
     }
     # The team's own pick list edits and chat. Eye verifies the signed Slack
-    # session and its reader grants on every call. Partner sharing
-    # (/picklist/, join/leave) stays blocked: partners are not workspace members.
+    # session and its reader grants on every call.
     @pickListActions {
         method POST
         path_regexp pickListActions ^/_actions/(editPickList|sharePickList|postPickListMessage)/?$

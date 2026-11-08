@@ -197,7 +197,7 @@ this release does not remove existing app logins. No new Slack scopes are needed
 | `apps` | Native sign-in/callback routes, public branding | Portal requires login; unknown paths 404 |
 | `mod`, `bot` | POST `/slack/events`; GET `/slack/oauth_redirect`, `/auth/slack/callback`; GET/HEAD `/health` | Gateway membership required, then the existing app login/permissions |
 | `shop` | Entire host bypasses the suite login gate | Existing Onshape login and app permissions |
-| `scout` | GET/HEAD `/health` | Event/team views, scouting, the team pick list and its three edit actions, docs, and their assets require gateway membership; other routes 503 |
+| `scout` | GET/HEAD `/health`, partner pick list pages and static app assets; exact partner join/leave/chat POSTs, authorized by Eye's share code | Event/team views, scouting, the host pick list and its three edit actions, and docs require gateway membership; other routes 503. See [the exact allowlist](hawk-eye.md). |
 
 The Deploy plan requires an `authentication` entry in the release manifest;
 its absence intentionally blocks deployment until a tested gateway image is

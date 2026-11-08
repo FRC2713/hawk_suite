@@ -25,6 +25,8 @@ See [its deployment notes](docs/hawk-eye.md).
 Mod, Bot, and Eye's event/team views and docs sit behind a shared Caddy/Slack
 authentication gateway; see
 [the authentication gateway section](docs/continuous-deployment.md#authentication-gateway-releases).
+Eye's partner pick list links bypass Slack sign-in and use a revocable share
+code instead. Partners see only the shared board and chat.
 
 ## Deploying
 
