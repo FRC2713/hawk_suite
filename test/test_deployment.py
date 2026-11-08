@@ -211,7 +211,7 @@ class TransactionTests(unittest.TestCase):
 
 
 class ComposeCredentialTests(unittest.TestCase):
-    def test_auth_overlay_changes_only_gateway_and_eye_public_key(self):
+    def test_auth_overlay_changes_only_gateway_and_gated_app_public_keys(self):
         import shutil
         if not shutil.which('docker'):
             self.skipTest('Docker CLI required')
@@ -226,14 +226,19 @@ class ComposeCredentialTests(unittest.TestCase):
             base = json.loads(subprocess.check_output(command+['config','--format','json']))
             overlay = json.loads(subprocess.check_output(command+['-f',str(ROOT/'config/authentication/compose.yaml'),
                                                                  'config','--format','json']))
+        # Eye, Mod and Bot each verify the gateway's session themselves; Shop is
+        # not behind the gateway and must be untouched.
+        gated = ('hawk-eye', 'hawk-mod', 'hawk-bot')
         for app in APPS:
-            if app != 'hawk-eye':
+            if app not in gated:
                 self.assertEqual(base['services'][app], overlay['services'][app])
-        eye_base, eye = base['services']['hawk-eye'], overlay['services']['hawk-eye']
-        self.assertEqual({**eye_base['environment'], 'HAWK_SUITE_ISSUER': 'https://apps.ci.example.org/',
-                          'HAWK_SUITE_PUBLIC_KEY': 'UFVCTElDLUtFWQ=='}, eye['environment'])
-        self.assertEqual({k: v for k, v in eye_base.items() if k != 'environment'},
-                         {k: v for k, v in eye.items() if k != 'environment'})
+        for app in gated:
+            app_base, gated_app = base['services'][app], overlay['services'][app]
+            self.assertEqual({**app_base['environment'], 'HAWK_SUITE_ISSUER': 'https://apps.ci.example.org/',
+                              'HAWK_SUITE_PUBLIC_KEY': 'UFVCTElDLUtFWQ=='}, gated_app['environment'],
+                             msg=app)
+            self.assertEqual({k: v for k, v in app_base.items() if k != 'environment'},
+                             {k: v for k, v in gated_app.items() if k != 'environment'}, msg=app)
         for app in APPS:
             self.assertNotIn('/private/auth', json.dumps(overlay['services'][app]))
         gateway = overlay['services']['caddy']

@@ -16,3 +16,16 @@ services:
     environment:
       HAWK_SUITE_ISSUER: https://apps.${DOMAIN}/
       HAWK_SUITE_PUBLIC_KEY: ${HAWK_AUTH_PUBLIC_KEY_BASE64:?Rendered by the authenticated release}
+  # Mod and Bot verify that same session themselves, so an administrator who is
+  # already signed in at the gateway is not asked to sign in with Slack a second
+  # time on the app's own /config page. Each app still runs its own Slack
+  # Owner/Admin check on every request, and the private signing key stays on the
+  # gateway.
+  hawk-mod:
+    environment:
+      HAWK_SUITE_ISSUER: https://apps.${DOMAIN}/
+      HAWK_SUITE_PUBLIC_KEY: ${HAWK_AUTH_PUBLIC_KEY_BASE64:?Rendered by the authenticated release}
+  hawk-bot:
+    environment:
+      HAWK_SUITE_ISSUER: https://apps.${DOMAIN}/
+      HAWK_SUITE_PUBLIC_KEY: ${HAWK_AUTH_PUBLIC_KEY_BASE64:?Rendered by the authenticated release}
