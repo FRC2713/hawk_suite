@@ -131,7 +131,7 @@ scout.__DOMAIN__ {
     # (/picklist/, join/leave) stays blocked: partners are not workspace members.
     @pickListActions {
         method POST
-        path_regexp pickListActions ^/_actions/(editPickList|sharePickList|postPickListMessage)$
+        path_regexp pickListActions ^/_actions/(editPickList|sharePickList|postPickListMessage)/?$
         expression {http.request.uri.query} == ''
     }
     route @pickListActions {
