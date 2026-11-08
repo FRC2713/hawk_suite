@@ -2,8 +2,8 @@
   "schema": 1,
   "apps": {
     "hawk-shop": {
-      "revision": "b355fdc098b97f8da45d15dbb9879d90d136bc2c",
-      "digest": "sha256:18be2bbd2e3be7a127374b94f39b3e50d1933b1becf3281b6768b4fc674febcc",
+      "revision": "baf6db2b6957466e77cc3932671209dcf2f6eae3",
+      "digest": "sha256:8f3aebdb311dbc4ddbbd7c49f577356906a539d58fc4816ccf0932c732682453",
       "contract": 1
     },
     "hawk-mod": {
@@ -12,13 +12,13 @@
       "contract": 1
     },
     "hawk-bot": {
-      "revision": "2a46946d2af195a49989088ca5a43bc39c062096",
-      "digest": "sha256:f2efd7fdd5dc05da003a2dbf5846aac81cf683ca7a24e241f2a330c8bc6b0d33",
+      "revision": "3093e5791490015e50a4c29406373b4cec06cf8d",
+      "digest": "sha256:854dd83368521b55888d93eb734f78075f6d864b5f9d489e13c094f2babdf32f",
       "contract": 1
     },
     "hawk-eye": {
-      "revision": "b9c512b2fe25619840351fd2093c27b8de874b33",
-      "digest": "sha256:17f29035a4b04c6be269c2da0e69d6497dbc5ef3f29b65eafd6ca94c15e78c39",
+      "revision": "8fc613b0c339dc4144d1ed97a0999fdbab4271bf",
+      "digest": "sha256:b68a305c58cbd0b88b64d66eb5571a89dc5172b7165ae49997ac9f31b401ee9f",
       "contract": 1
     }
   },
