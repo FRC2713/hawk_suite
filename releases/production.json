@@ -7,8 +7,8 @@
       "contract": 1
     },
     "hawk-mod": {
-      "revision": "0d2cb2b05b983c1de0a34aa0235c0b88441859b4",
-      "digest": "sha256:b19dd0775a335f483739d370b697b95c0f135f4997359c3758592b74b16e203b",
+      "revision": "b6d5334a6ecdab33e826dc526a1ae9ec1c6670f0",
+      "digest": "sha256:cfe1a892fe6be6124bae9aa1b66540ca0bce385345e7f10539c38aff52dfbc93",
       "contract": 1
     },
     "hawk-bot": {
