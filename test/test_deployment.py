@@ -134,7 +134,7 @@ class TransactionTests(unittest.TestCase):
             outputs += [data['apps'][app]['revision'], json.dumps(dict(name=app, schema=1, required_env=[], optional_env=[]))]
         outputs.append('b' * 40)
         with patch.object(deploy, 'output', side_effect=outputs), patch.object(deploy, 'run') as run, \
-                patch.object(deploy, 'prepare_auth', return_value={'HAWK_AUTH_CONFIG_DIR': '/private/auth', 'HAWK_AUTH_ASSET_DIR': '/assets'}), \
+                patch.object(deploy, 'prepare_auth', return_value={'HAWK_AUTH_CONFIG_DIR': '/private/auth', 'HAWK_AUTH_ASSET_DIR': '/assets', 'HAWK_AUTH_PUBLIC_KEY_BASE64': 'UFVCTElDLUtFWQ=='}), \
                 patch.object(deploy.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0)) as validate_run, \
                 patch.object(deploy, 'backup', return_value=None), patch.object(deploy, 'check_containers'):
             deploy.main(self.stack, self.target, self.request)
@@ -211,12 +211,13 @@ class TransactionTests(unittest.TestCase):
 
 
 class ComposeCredentialTests(unittest.TestCase):
-    def test_auth_overlay_changes_only_gateway_and_keeps_keys_out_of_apps(self):
+    def test_auth_overlay_changes_only_gateway_and_eye_public_key(self):
         import shutil
         if not shutil.which('docker'):
             self.skipTest('Docker CLI required')
         values = dict(DOMAIN='ci.example.org', HAWK_AUTH_IMAGE='ghcr.io/frc2713/hawk-auth@sha256:'+'a'*64,
-                      HAWK_AUTH_CONFIG_DIR='/private/auth', HAWK_AUTH_ASSET_DIR='/reviewed/assets')
+                      HAWK_AUTH_CONFIG_DIR='/private/auth', HAWK_AUTH_ASSET_DIR='/reviewed/assets',
+                      HAWK_AUTH_PUBLIC_KEY_BASE64='UFVCTElDLUtFWQ==')
         with tempfile.NamedTemporaryFile(mode='w') as file:
             file.write(deploy.env_text(values))
             file.flush()
@@ -226,7 +227,15 @@ class ComposeCredentialTests(unittest.TestCase):
             overlay = json.loads(subprocess.check_output(command+['-f',str(ROOT/'config/authentication/compose.yaml'),
                                                                  'config','--format','json']))
         for app in APPS:
-            self.assertEqual(base['services'][app], overlay['services'][app])
+            if app != 'hawk-eye':
+                self.assertEqual(base['services'][app], overlay['services'][app])
+        eye_base, eye = base['services']['hawk-eye'], overlay['services']['hawk-eye']
+        self.assertEqual({**eye_base['environment'], 'HAWK_SUITE_ISSUER': 'https://apps.ci.example.org/',
+                          'HAWK_SUITE_PUBLIC_KEY': 'UFVCTElDLUtFWQ=='}, eye['environment'])
+        self.assertEqual({k: v for k, v in eye_base.items() if k != 'environment'},
+                         {k: v for k, v in eye.items() if k != 'environment'})
+        for app in APPS:
+            self.assertNotIn('/private/auth', json.dumps(overlay['services'][app]))
         gateway = overlay['services']['caddy']
         self.assertEqual(gateway['image'], values['HAWK_AUTH_IMAGE'])
         mounts = {v['target']: v for v in gateway['volumes']}

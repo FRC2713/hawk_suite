@@ -131,8 +131,8 @@ backup, container checks, and HTTPS checks. See [hawk-eye.md](hawk-eye.md).
 Hawk Eye provider secrets are `HAWK_EYE_TBA_API_KEY` and
 `HAWK_EYE_MATCH13_API_KEY`. `HAWK_EYE_MATCH13_ACCOUNT` is an optional repository
 variable, default `default`, used for stable account-level cache/quota tracking.
-These reach only the Hawk Eye container. Private scouting endpoints remain
-outside the public proxy allowlist.
+These reach only the Hawk Eye container. Scouting ingestion and REST/MCP
+endpoints remain outside the proxy allowlist.
 
 ## Authentication gateway releases
 
@@ -144,9 +144,11 @@ portal. No suite membership grants any
 app's admin rights; each app keeps its own permissions. Signing out of the
 gateway does not sign out of individual apps.
 
-Hawk Eye retains its existing GET/HEAD route allowlist. Gateway membership
-does not enable scouting APIs or writes; those require app-level authorization
-and a separate routing change.
+Hawk Eye verifies the signed session with the gateway's public key, which the
+authentication overlay passes as `HAWK_SUITE_PUBLIC_KEY` with
+`HAWK_SUITE_ISSUER`. Members can read scouting data and edit the team's pick
+list. Gateway membership does not enable scouting ingestion, REST, or MCP;
+see [hawk-eye.md](hawk-eye.md) for the exact Eye allowlist.
 
 Sign-in is at `https://apps.<domain>/auth/`. The session cookie is scoped to
 the bare domain, Secure, HttpOnly, SameSite=Lax, with a 15-minute access
@@ -163,7 +165,7 @@ verify that JWT itself with the gateway's public key (issuer
 | `apps` | Native sign-in/callback routes, public branding | Portal requires login; unknown paths 404 |
 | `mod`, `bot` | POST `/slack/events`; GET `/slack/oauth_redirect`, `/auth/slack/callback`; GET/HEAD `/health` | Gateway membership required, then the existing app login/permissions |
 | `shop` | Entire host bypasses the suite login gate | Existing Onshape login and app permissions |
-| `scout` | GET/HEAD `/health` | Event/team views, docs, and their assets require gateway membership; other routes 503 |
+| `scout` | GET/HEAD `/health` | Event/team views, scouting, the team pick list and its three edit actions, docs, and their assets require gateway membership; other routes 503 |
 
 The Deploy plan requires an `authentication` entry in the release manifest;
 its absence intentionally blocks deployment until a tested gateway image is

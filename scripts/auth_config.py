@@ -59,4 +59,6 @@ def prepare(target, directory, values):
         path.write_bytes(content)
         os.chmod(path, 0o600)
     return {'HAWK_AUTH_CONFIG_DIR': str(directory),
-            'HAWK_AUTH_ASSET_DIR': str(Path(target) / 'config/authentication/assets')}
+            'HAWK_AUTH_ASSET_DIR': str(Path(target) / 'config/authentication/assets'),
+            # Public half only, for apps that verify the signed session themselves.
+            'HAWK_AUTH_PUBLIC_KEY_BASE64': base64.b64encode(public).decode()}

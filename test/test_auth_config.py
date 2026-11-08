@@ -32,6 +32,8 @@ class AuthConfigTests(unittest.TestCase):
             self.assertEqual(result['HAWK_AUTH_CONFIG_DIR'], str(directory))
             self.assertEqual((directory / 'private.pem').read_bytes(), self.key)
             self.assertIn(b'PUBLIC KEY', (directory / 'public.pem').read_bytes())
+            self.assertEqual(base64.b64decode(result['HAWK_AUTH_PUBLIC_KEY_BASE64']),
+                             (directory / 'public.pem').read_bytes())
             config = (directory / 'Caddyfile').read_text()
             self.assertNotIn('__DOMAIN__', config)
             self.assertIn('slack/workspace/TAPPROVED', config)
