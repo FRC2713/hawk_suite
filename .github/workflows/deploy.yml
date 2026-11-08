@@ -1,20 +1,10 @@
 name: Deploy
 
 on:
+  # Deploys happen only when someone runs this workflow from main; merging never
+  # deploys. The production environment has no required reviewers, so a run
+  # goes straight through: starting it is the decision to deploy.
   workflow_dispatch:
-  # A merge that changes what runs on the host queues a deploy. It still waits
-  # for the production environment's reviewers; merging alone deploys nothing.
-  push:
-    branches: [main]
-    paths:
-      - releases/**
-      - docker-compose.yml
-      - Caddyfile
-      - portal/**
-      - scripts/deploy.py
-      - scripts/release.py
-      - scripts/backup_auth.py
-      - scripts/verify-https.sh
 
 permissions:
   contents: read

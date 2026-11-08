@@ -37,7 +37,7 @@ curl -fsSL https://raw.githubusercontent.com/FRC2713/hawk_suite/main/scripts/pro
 
 That installs Docker, a restricted `deploy` user, and a key that can only
 trigger a deploy — then prints the two values to paste into GitHub Secrets.
-Everything after it is Actions → **Deploy**, behind a required reviewer.
+Everything after it is Actions → **Deploy**, run by hand from main.
 [**docs/continuous-deployment.md**](docs/continuous-deployment.md) has the full
 list of secrets and variables, and the trust model behind that gate.
 
@@ -79,9 +79,8 @@ applies its migrations on boot, so that is the whole procedure. Pin
 versions before competition season if you would rather not track each repo's
 `main`.
 
-Or from GitHub: Actions → **Deploy**, which does the same thing over SSH behind
-an approval gate. [docs/continuous-deployment.md](docs/continuous-deployment.md)
-sets that up.
+Or from GitHub: Actions → **Deploy**, which does the same thing over SSH.
+[docs/continuous-deployment.md](docs/continuous-deployment.md) sets that up.
 
 ## Contributing
 
@@ -134,7 +133,7 @@ recreatable by reinstalling, and not sensitive in the same way.
 
 ## Pinned production releases
 
-The reviewed deployment path now uses `releases/production.json`, immutable image digests and an exact suite revision. Ship an app with `scripts/promote.py <app>` and a release PR (or `/ship <app>` in Claude Code). Merging queues Deploy, which waits for production approval. See [the migration and recovery guide](docs/continuous-deployment.md) before the first rollout: existing images must be replaced by contract-v1 candidates, the host launcher must be upgraded once, and the backup key must be configured.
+The reviewed deployment path now uses `releases/production.json`, immutable image digests and an exact suite revision. Ship an app with `scripts/promote.py <app>` and a release PR (or `/ship <app>` in Claude Code). Then run the Deploy workflow; merging alone deploys nothing. See [the migration and recovery guide](docs/continuous-deployment.md) before the first rollout: existing images must be replaced by contract-v1 candidates, the host launcher must be upgraded once, and the backup key must be configured.
 
 `python3 scripts/doctor.py --domain <domain>` checks routing and deployed revisions. The interactive `setup.sh` path is still available for installations without Actions; `update.sh` refuses to bypass a host already managed by reviewed releases.
 
