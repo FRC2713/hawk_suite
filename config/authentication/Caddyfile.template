@@ -41,6 +41,9 @@
 			}
 		}
 		authorization policy suite {
+			inject headers with claims
+			inject header X-Hawk-Slack-Team from slack_team_id
+			inject header X-Hawk-Slack-User from slack_user_id
 			set auth url https://apps.__DOMAIN__/auth/
 			set token sources header cookie
 			validate bearer header
@@ -56,6 +59,16 @@
 	}
 }
 
+# Clear before authorization: missing claims must not preserve caller input.
+(clear-suite-identity) {
+    request_header -X-Token-Subject
+    request_header -X-Token-User-Name
+    request_header -X-Token-User-Email
+    request_header -X-Token-User-Roles
+    request_header -X-Hawk-Slack-Team
+    request_header -X-Hawk-Slack-User
+    request_header -X-Hawk-Identity
+}
 (auth-assets) {
     handle_path /suite-assets/* {
         root * /srv/auth-assets
@@ -73,6 +86,7 @@
 }
 apps.__DOMAIN__ {
   route {
+    import clear-suite-identity
     import auth-assets
     import auth-portal
     redir / /auth/portal 302
@@ -90,6 +104,7 @@ apps.__DOMAIN__ {
 }
 scout.__DOMAIN__ {
   route {
+    import clear-suite-identity
     @health {
         method GET HEAD
         path /health
@@ -138,7 +153,10 @@ scout.__DOMAIN__ {
 # Shop retains its own Onshape authentication, including the embedded view.
 # Its card remains in the authenticated portal; direct access has no suite gate.
 shop.__DOMAIN__ {
-    import shop-proxy
+    route {
+        import clear-suite-identity
+        import shop-proxy
+    }
 }
 (slack-app) {
     @events {
@@ -170,6 +188,7 @@ shop.__DOMAIN__ {
     }
     handle {
         route {
+    import clear-suite-identity
             authorize with suite
             reverse_proxy {args[0]} {
                 header_up -X-Hawk-Identity
@@ -178,8 +197,14 @@ shop.__DOMAIN__ {
     }
 }
 mod.__DOMAIN__ {
-    import slack-app hawk-mod:3000
+    route {
+        import clear-suite-identity
+        import slack-app hawk-mod:3000
+    }
 }
 bot.__DOMAIN__ {
-    import slack-app hawk-bot:3000
+    route {
+        import clear-suite-identity
+        import slack-app hawk-bot:3000
+    }
 }

@@ -28,7 +28,7 @@ def main():
     key = rsa.generate_private_key(public_exponent=65537, key_size=3072)
     def token(**overrides):
         claims = dict(sub='slack:TAPPROVED:UTEST', iss='https://apps.suite.test/',
-                      aud='hawk-suite', roles=['suite/member'], iat=int(time.time()),
+                      slack_team_id='TAPPROVED', slack_user_id='UTEST', aud='hawk-suite', roles=['suite/member'], iat=int(time.time()),
                       nbf=int(time.time())-60, exp=int(time.time())+120, jti=uuid.uuid4().hex)
         claims.update(overrides)
         enc = lambda obj: base64.urlsafe_b64encode(json.dumps(obj).encode()).rstrip(b'=')
@@ -80,7 +80,14 @@ HTTPServer(('0.0.0.0',3000), Handler).serve_forever()
             def request(host, path='/', method='GET', headers=None):
                 connection = http.client.HTTPConnection('127.0.0.1', port, timeout=3)
                 try:
-                    connection.request(method, path, headers={'Host':host+'.suite.test:8080', **(headers or {})})
+                    if isinstance(headers, list):
+                        connection.putrequest(method, path, skip_host=True)
+                        connection.putheader('Host', host+'.suite.test:8080')
+                        for key, value in headers:
+                            connection.putheader(key, value)
+                        connection.endheaders()
+                    else:
+                        connection.request(method, path, headers={'Host':host+'.suite.test:8080', **(headers or {})})
                     response = connection.getresponse()
                     return response.status, response.getheader('Location',''), response.read()
                 finally:
@@ -114,6 +121,29 @@ HTTPServer(('0.0.0.0',3000), Handler).serve_forever()
                 check('X-Hawk-Identity' not in parsed,host+' strips forged identity')
                 check('app_session=preserved' in parsed.get('Cookie',''),host+' preserves app login cookie')
                 check('AUTHP_ACCESS_TOKEN='+valid in parsed.get('Cookie',''),host+' forwards signed suite session')
+            identity = {'X-Token-Subject': 'slack:TAPPROVED:UTEST',
+                        'X-Hawk-Slack-Team': 'TAPPROVED', 'X-Hawk-Slack-User': 'UTEST',
+                        'X-Token-User-Roles': 'suite/member'}
+            forged = {key: 'forged' for key in [*identity, 'X-Token-User-Name', 'X-Token-User-Email']}
+            for host in ('mod', 'bot', 'scout'):
+                check(request(host, headers=forged)[0] != 200, host+' rejects forged identity without session')
+                status, _, body = request(host, headers={**forged, 'Cookie': 'AUTHP_ACCESS_TOKEN='+valid})
+                received = {k.lower(): v for k, v in json.loads(body).items()}
+                check(status == 200 and all(received.get(k.lower()) == v for k,v in identity.items()), host+' injects verified identity')
+                check('x-token-user-name' not in received and 'x-token-user-email' not in received, host+' clears absent optional claims')
+                status, _, body = request(host, headers={'Cookie':'AUTHP_ACCESS_TOKEN='+token(name='Fixture User', email='fixture@example.org')})
+                received = {k.lower(): v for k,v in json.loads(body).items()}
+                check(received.get('x-token-user-name') == 'Fixture User' and received.get('x-token-user-email') == 'fixture@example.org', host+' forwards profile')
+            status, _, body = request('bot', headers=[('Cookie','AUTHP_ACCESS_TOKEN='+valid),
+                ('X-Hawk-Slack-User','forged'), ('x-hawk-slack-user','other'),
+                ('X-Token-User-Email','forged'), ('x-token-user-email','other')])
+            received = {k.lower(): v for k,v in json.loads(body).items()}
+            check(status == 200 and received.get('x-hawk-slack-user') == 'UTEST'
+                  and 'x-token-user-email' not in received, 'duplicate mixed-case headers cannot survive')
+            for host, path in [('shop','/'), ('scout','/health'), ('bot','/health'), ('mod','/slack/oauth_redirect')]:
+                status, _, body = request(host, path, headers=forged)
+                received = {k.lower(): v for k,v in json.loads(body).items()}
+                check(status == 200 and not any(k.lower() in received for k in forged), host+' clears identity on bypass')
             for host in ('mod','bot'):
                 for path, method in [('/slack/events','POST'),('/slack/oauth_redirect','GET'),('/auth/slack/callback','GET'),('/health','GET')]:
                     check(request(host,path,method)[0] == 200,host+' forwards exact '+method+' '+path)
