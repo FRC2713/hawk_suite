@@ -57,8 +57,9 @@ Gated scouting routes are the event scouting tab, team scouting views, the
 event pick list page (`/events/{eventKey}/picklist/`) and its live state
 (`picklist.json`), and three exact POST actions with no query string:
 `/_actions/editPickList`, `/_actions/sharePickList`, and
-`/_actions/postPickListMessage`. Partner sharing (`/picklist/`, join/leave,
-partner chat) stays blocked because partner teams are not workspace members.
+`/_actions/postPickListMessage`, each with an optional trailing slash. Partner
+sharing (`/picklist/`, join/leave, partner chat) stays blocked because partner
+teams are not workspace members.
 Older Eye images reject the two settings at deploy, so an Eye image from
 FRC2713/hawk-eye 5b93df6 or later must be promoted with them. Any further
 scouting route needs the same review of Eye's authorization and the Caddy
