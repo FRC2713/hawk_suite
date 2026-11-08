@@ -144,11 +144,22 @@ portal. No suite membership grants any
 app's admin rights; each app keeps its own permissions. Signing out of the
 gateway does not sign out of individual apps.
 
-Hawk Eye verifies the signed session with the gateway's public key, which the
-authentication overlay passes as `HAWK_SUITE_PUBLIC_KEY` with
-`HAWK_SUITE_ISSUER`. Members can read scouting data and edit the team's pick
-list. Gateway membership does not enable scouting ingestion, REST, or MCP;
-see [hawk-eye.md](hawk-eye.md) for the exact Eye allowlist.
+Hawk Eye, Hawk Mod, and Hawk Bot each verify the signed session with the
+gateway's public key, which the authentication overlay passes to all three as
+`HAWK_SUITE_PUBLIC_KEY` with `HAWK_SUITE_ISSUER`. In Eye, members can read
+scouting data and edit the team's pick list; gateway membership does not enable
+scouting ingestion, REST, or MCP; see [hawk-eye.md](hawk-eye.md) for the exact
+Eye allowlist. Mod and Bot use the verified session as the identity on their own
+`/config` pages, so an administrator signed in at the gateway is not asked to
+sign in with Slack a second time at the app. Their permissions are unchanged:
+each still runs its own admin check on every request, so a verified suite
+session on its own grants nothing. Those two rules differ: Mod requires a Slack
+workspace Owner or Admin, and Bot requires membership in the Slack user group
+named by its `admin_usergroup` setting, with workspace Owners accepted as a
+bootstrap fallback. With the two settings absent, both apps fall back to their
+own Slack sign-in exactly as before; an app image that does not yet declare them
+rejects them at deploy, so Mod and Bot must be promoted from revisions that
+accept them.
 
 Sign-in is at `https://apps.<domain>/auth/`. The session cookie is scoped to
 the bare domain, Secure, HttpOnly, SameSite=Lax, with a 15-minute access
