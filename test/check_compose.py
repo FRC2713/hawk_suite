@@ -32,3 +32,10 @@ assert eye['volumes'][0]['target'] == '/data'
 for service, config in services.items():
     if service != "hawk-eye":
         assert not {"TBA_API_KEY", "MATCH13_API_KEY", "MATCH13_ACCOUNT"}.intersection(config.get("environment", {}))
+
+# Each application can reach Caddy, but no sibling application shares its bridge.
+for app in ('shop', 'mod', 'bot', 'eye'):
+    service = services['hawk-' + app]
+    assert set(service['networks']) == {app}
+    assert not service.get('ports')
+assert set(services['caddy']['networks']) == {'shop', 'mod', 'bot', 'eye'}

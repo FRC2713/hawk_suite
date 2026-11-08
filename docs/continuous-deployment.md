@@ -154,11 +154,37 @@ Sign-in is at `https://apps.<domain>/auth/`. The session cookie is scoped to
 the bare domain, Secure, HttpOnly, SameSite=Lax, with a 15-minute access
 token. Client-supplied `X-Hawk-Identity` is stripped before every app proxy.
 Mod, Bot, and Eye receive the browser's cookies unchanged, including the signed
-`AUTHP_ACCESS_TOKEN` session. An app that wants to know who is signed in must
-verify that JWT itself with the gateway's public key (issuer
-`https://apps.<domain>/`, audience `hawk-suite`, role `suite/member`, subject
-`slack:<team>:<user>`); it must never trust an identity header. Eye's
-`Authorization` header is still stripped.
+`AUTHP_ACCESS_TOKEN` session. Applications may continue verifying that JWT themselves. Authenticated requests
+also receive the identity headers documented below; adopting them is a separate
+change in each application's repository. Eye's `Authorization` header is still stripped.
+
+### Downstream identity contract
+
+Caddy clears caller-supplied identity headers before routing, then AuthCrunch
+injects these fields only after successful suite authorization:
+
+| Header | Meaning |
+| --- | --- |
+| `X-Token-Subject` | Stable `slack:<workspace>:<user>` subject |
+| `X-Hawk-Slack-Team` | Verified Slack workspace ID |
+| `X-Hawk-Slack-User` | Verified Slack user ID |
+| `X-Token-User-Name` | Optional display name |
+| `X-Token-User-Email` | Optional email |
+| `X-Token-User-Roles` | Space-separated gateway roles, including `suite/member` |
+
+These are trusted-proxy headers, not independently signed credentials. Backends
+have no published ports and each shares a separate bridge network with Caddy;
+the host and proxy are trusted. Do not expose an app directly or attach untrusted
+containers to its network when adopting this contract. Consumers must check the
+expected workspace, matching subject/user IDs, and `suite/member`. Display names
+and emails are not permission grants; escape them when rendering. Gateway roles
+are not Slack user-group memberships.
+
+Shop and public exceptions receive none of these identity headers, even if a
+browser sends a suite cookie. Legacy `X-Hawk-Identity` is always removed.
+Application cookies, OAuth flows, permissions, and image pins are unchanged;
+this release does not remove existing app logins. No new Slack scopes are needed.
+
 
 | Host | Public exceptions | Everything else |
 | --- | --- | --- |

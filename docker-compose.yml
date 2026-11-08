@@ -24,6 +24,7 @@ services:
       - caddy_config:/config
     # Start order only, deliberately not `condition: service_healthy`: an app
     # missing a credential should not keep the proxy (and the other app) down.
+    networks: [shop, mod, bot, eye]
     depends_on:
       - hawk-shop
       - hawk-mod
@@ -31,6 +32,7 @@ services:
       - hawk-eye
 
   hawk-shop:
+    networks: [shop]
     image: ${HAWK_SHOP_IMAGE:-ghcr.io/frc2713/hawk-shop:${HAWK_SHOP_TAG:-latest}}
     restart: unless-stopped
     environment:
@@ -56,6 +58,7 @@ services:
     # The image carries its own HEALTHCHECK against /api/health.
 
   hawk-mod:
+    networks: [mod]
     image: ${HAWK_MOD_IMAGE:-ghcr.io/frc2713/hawk-mod:${HAWK_MOD_TAG:-latest}}
     restart: unless-stopped
     environment:
@@ -108,6 +111,7 @@ services:
     # The image carries its own HEALTHCHECK against /health.
 
   hawk-bot:
+    networks: [bot]
     image: ${HAWK_BOT_IMAGE:-ghcr.io/frc2713/hawk-bot:${HAWK_BOT_TAG:-latest}}
     restart: unless-stopped
     environment:
@@ -156,6 +160,7 @@ services:
     # The image carries its own HEALTHCHECK against /health.
 
   hawk-eye:
+    networks: [eye]
     image: ${HAWK_EYE_IMAGE:-ghcr.io/frc2713/hawk-eye:${HAWK_EYE_TAG:-sha-535855c59b2d1f290c899ba1c834bdcc3d6db86e}}
     restart: unless-stopped
     environment:
@@ -178,3 +183,10 @@ volumes:
   hawk_mod_data:
   hawk_bot_data:
   hawk_eye_data:
+
+# Each backend shares a network only with Caddy; outbound API access remains enabled.
+networks:
+  shop: {}
+  mod: {}
+  bot: {}
+  eye: {}
