@@ -42,7 +42,7 @@ retain the backup encryption key in the team's password manager.
 - Set `BACKUP_ENCRYPTION_KEY` and promote verified contract-v1 images for all
   suite apps before running Deploy. These requirements also protect the
   existing three apps during the first deployment with the new pipeline.
-- Merge to main; the Deploy workflow runs from main.
+- Merge to main, then run the Deploy workflow from main.
 
 The current deployment publishes read-only provider views and design docs. It does
 not provide a working scouting service or consume suite identity. Reviewed

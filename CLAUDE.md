@@ -46,7 +46,8 @@ Production uses the reviewed Deploy workflow.
 
 To ship an app change, use the `/ship <app>` skill. By hand, the steps are:
 wait for the app's publish run, then `python3 scripts/promote.py <app>[@sha]`
-on a branch, then PR and merge. Merging deploys it. `python3 scripts/doctor.py
+on a branch, then PR and merge, then run the Deploy workflow
+(`gh workflow run deploy.yml --ref main`). `python3 scripts/doctor.py
 --domain <domain>` performs read-only routing, registry and version checks.
 
 ## Architecture
@@ -122,8 +123,8 @@ A post-apply failure may have run migrations. Retain the failure record,
 previous images and authenticated encrypted backup. Database restore is an
 explicit maintenance operation; image rollback requires schema compatibility.
 
-The `production` environment has no required reviewers, so merging a change to
-host-facing files on main deploys it. Merging suite configuration grants host
+Merging never deploys. Deploy runs only when started by hand from main, and the
+`production` environment has no required reviewers, so starting it deploys. Merging suite configuration grants host
 code execution through Docker; branch protection and narrow merge rights are
 the control. Apps retain separate credentials and persistent data.
 

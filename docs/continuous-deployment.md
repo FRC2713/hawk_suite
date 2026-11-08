@@ -1,12 +1,12 @@
 # Reviewed releases
 
-Production ships the four image digests in `releases/production.json`, together with an exact suite commit. Merging an app change publishes a tested image. Promoting it is a suite PR, and merging that PR deploys it. The `production` environment has no required reviewers: review of the release PR is the approval.
+Production ships the four image digests in `releases/production.json`, together with an exact suite commit. Merging an app change publishes a tested image. Promoting it is a suite PR. Merging that PR does not deploy; running the Deploy workflow from main does. The `production` environment has no required reviewers, so starting Deploy is the decision to deploy.
 
 ```text
 app main → app CI, alongside: build candidate → fresh smoke test
   → upgrade smoke test from the production digest
   → (CI and smoke tests pass) publish sha-<commit> → scripts/promote.py → release PR → review and merge
-  → Deploy runs on main
+  → run Deploy on main
   → validate and pull → encrypted backup → apply → verify → receipt
 ```
 
@@ -21,7 +21,7 @@ The script resolves the app's `sha-<commit>` tag to its digest and edits the rel
 
 The script does not repeat the host's checks. Before changing anything, Deploy verifies each image's revision label and configuration contract.
 
-Deploy is queued by pushes to main that change `releases/`, `docker-compose.yml`, `Caddyfile`, `portal/` or the host-side deploy scripts. It can also be started by hand from main.
+Deploy never runs on its own. Start it from main with Actions → Deploy → Run workflow, or `gh workflow run deploy.yml --ref main`.
 
 ## One-time migration from the old workflow
 
@@ -29,7 +29,7 @@ Deploy is queued by pushes to main that change `releases/`, `docker-compose.yml`
 2. Merge the app workflow changes. Each publisher verifies, builds and tests an image. Promote all four apps with `scripts/promote.py` before the first new Deploy run.
 3. Generate `BACKUP_ENCRYPTION_KEY` once with `openssl rand -base64 32`. Save it as a suite production secret and retain a copy in the password manager. It is separate from both apps' encryption keys. Keep old backup keys if rotating it.
 4. The host owner installs the new forced-command launcher once. Existing hosts can use the launcher-only command below, keeping their existing SSH key and volumes. Use `scripts/provision-host.sh` for a fresh host. The new transport is JSON; the legacy launcher cannot process it. The launcher remains root-owned at `/usr/local/bin/hawk-deploy` and only authorizes an exact revision of main. Runtime deployment code comes from that reviewed revision's worktree.
-5. Enable required CI and narrow merge rights on the suite. Merges to main deploy without a separate approval.
+5. Enable required CI and narrow merge rights on the suite. Deploy runs only when started from main, without a separate approval.
 
 For an existing host, run this in its root console to update only the
 launcher. The pinned revision contains the new JSON launcher. This does not
@@ -81,7 +81,7 @@ Image tags and image overrides are not production variables. Review image change
 
 ## What deployment does
 
-The plan job records `GITHUB_SHA` and shows the release in the run summary. The host rejects the request if main has moved since the run started; the newer merge's own Deploy run carries the release forward. This also prevents a queued older request from overwriting a newer release.
+The plan job records `GITHUB_SHA` and shows the release in the run summary. The host rejects the request if main has moved since the run started; run Deploy again. This also prevents a queued older request from overwriting a newer release.
 
 The root-owned launcher holds a host lock and stages the exact commit in `.deploy/releases/<sha>`. It does not hard-reset or rewrite the active checkout. Staged worktrees are checked for modifications before execution. Deployment writes private staged configuration outside those worktrees, resolves Compose, pulls all images, checks their revision labels, validates each image's configuration contract without production volumes or network, and validates Caddy.
 
@@ -121,7 +121,7 @@ Doctor checks DNS, HTTPS, expected app revisions and access to every pinned imag
 
 ## Trust and permissions
 
-Merging a release PR deploys it, so review of that PR is the deployment authorization. Release digests come from `sha-<commit>` tags that only the app's main publisher pushes, after its smoke tests. The host independently checks every image's revision label and configuration contract before applying.
+Merging a release PR does not deploy it. Running Deploy from main is the deployment authorization, and it ships everything on main. Release digests come from `sha-<commit>` tags that only the app's main publisher pushes, after its smoke tests. The host independently checks every image's revision label and configuration contract before applying.
 
 Anyone who can merge suite configuration can cause code execution on the host. Compose can mount host paths, and the deploy account's Docker membership is root-equivalent. Branch protection and narrow merge rights remain essential. Application-image code can access its own app's production state, so app CI and review remain part of the trust model too. There is no separate production approval.
 
@@ -198,7 +198,7 @@ to GHCR does not deploy it; pinning its digest and running Deploy are separate s
    `HAWK_AUTH_SIGNING_KEY_BASE64` (a fresh unencrypted RSA key, at least 3072
    bits, base64-encoded PEM on one line). Never reuse Mod's or Bot's keys for
    this, and never paste any of these into an issue, chat, or command line.
-5. Merge the pinned release. Deploy runs from main.
+5. Merge the pinned release, then run **Deploy** from main.
 6. In a fresh browser session, confirm Mod, Bot, and Eye redirect anonymous
    users to the portal; sign in with Slack and confirm each app's own login
    still works; sign out of the gateway and confirm Mod/Bot/Eye are gated

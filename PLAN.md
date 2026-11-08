@@ -78,8 +78,8 @@ One Linode, one compose stack:
 - **State** is four named app Docker volumes including Hawk Eye. Containers are disposable; the
   volumes are not.
 - **Deployment** is a GitHub Actions job that SSHes in as a restricted `deploy`
-  user whose key can only run `/usr/local/bin/hawk-deploy`, started by merges
-  to main. See `docs/continuous-deployment.md` — in
+  user whose key can only run `/usr/local/bin/hawk-deploy`, started by hand
+  from main. See `docs/continuous-deployment.md` — in
   particular its trust model, which is the thing to read before granting anyone
   merge rights here.
 - **Authentication gateway.** A Caddy/caddy-security layer gates Mod, Bot, and
