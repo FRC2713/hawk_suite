@@ -106,9 +106,20 @@ scout.__DOMAIN__ {
     }
     @events {
         method GET HEAD
-        path_regexp events ^/(events/[0-9]{4}[a-z0-9]+(/(teams/[1-9][0-9]{0,4}|updates[.]json))?|teams/[1-9][0-9]{0,4})/?$
+        path_regexp events ^/(events/[0-9]{4}[a-z0-9]+(/(teams/[1-9][0-9]{0,4}|updates[.]json|picklist|picklist[.]json))?|teams/[1-9][0-9]{0,4})/?$
     }
     route @events {
+        import eye-protected
+    }
+    # The team's own pick list edits and chat. Eye verifies the signed Slack
+    # session and its reader grants on every call. Partner sharing
+    # (/picklist/, join/leave) stays blocked: partners are not workspace members.
+    @pickListActions {
+        method POST
+        path_regexp pickListActions ^/_actions/(editPickList|sharePickList|postPickListMessage)$
+        expression {http.request.uri.query} == ''
+    }
+    route @pickListActions {
         import eye-protected
     }
     respond "Hawk Eye scouting is not available yet." 503
@@ -117,7 +128,7 @@ scout.__DOMAIN__ {
         respond "Hawk Eye is temporarily unavailable." 503
     }
 }
-# Existing app cookies and logins are preserved. No suite identity is trusted by apps.
+# Shop is not gated: its cookies and Onshape login are preserved, and it receives no suite identity.
 (shop-proxy) {
     reverse_proxy hawk-shop:3000 {
         header_up -X-Hawk-Identity

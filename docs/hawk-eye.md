@@ -44,16 +44,25 @@ retain the backup encryption key in the team's password manager.
   existing three apps during the first deployment with the new pipeline.
 - Run the protected main Deploy workflow and use its production approval gate.
 
-The current deployment publishes read-only provider views and design docs. It does
-not provide a working scouting service. Reviewed authenticated releases gate
-these views and docs with Slack sign-in at Caddy and forward the signed
-`AUTHP_ACCESS_TOKEN` session cookie to Eye; `/health` remains public. Eye
-ignores that cookie until a Hawk Eye release that verifies it is promoted and
-given `HAWK_SUITE_ISSUER` and `HAWK_SUITE_PUBLIC_KEY`. Adding those settings
-before that image is promoted fails the deploy's environment-contract check. See the
+Reviewed authenticated releases gate Eye with Slack sign-in at Caddy and
+forward the signed `AUTHP_ACCESS_TOKEN` session cookie; `/health` remains
+public. The authentication overlay gives Eye `HAWK_SUITE_ISSUER`
+(`https://apps.<domain>/`) and `HAWK_SUITE_PUBLIC_KEY` (the gateway's public
+key, base64 PEM). Eye verifies the session itself and gives any workspace
+member scouting read access and pick list editing. Uploads, rebuilds, REST, and
+MCP still need operator-issued JWTs and stay blocked at the proxy. See the
 [authentication gateway release guide](continuous-deployment.md#authentication-gateway-releases).
-Future scouting routes require an explicit review of authorization and the
-Caddy allowlist before they are made public.
+
+Gated scouting routes are the event scouting tab, team scouting views, the
+event pick list page (`/events/{eventKey}/picklist/`) and its live state
+(`picklist.json`), and three exact POST actions with no query string:
+`/_actions/editPickList`, `/_actions/sharePickList`, and
+`/_actions/postPickListMessage`. Partner sharing (`/picklist/`, join/leave,
+partner chat) stays blocked because partner teams are not workspace members.
+Older Eye images reject the two settings at deploy, so an Eye image from
+FRC2713/hawk-eye 5b93df6 or later must be promoted with them. Any further
+scouting route needs the same review of Eye's authorization and the Caddy
+allowlist.
 
 
 ## Live event providers

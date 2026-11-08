@@ -127,6 +127,21 @@ HTTPServer(('0.0.0.0',3000), Handler).serve_forever()
             check('X-Hawk-Identity' not in json.loads(body),'Shop strips forged identity')
             check('https://shop.__DOMAIN__/' in (ROOT/'config/authentication/portal.template').read_text(), 'Shop card retained in native authenticated portal')
             check(request('scout','/api/write','POST',{'Cookie':'AUTHP_ACCESS_TOKEN='+valid})[0] == 503,'Eye writes remain unavailable')
+            signed = {'Cookie':'AUTHP_ACCESS_TOKEN='+valid}
+            for path in ('/events/2026casj/picklist/', '/events/2026casj/picklist.json?since=3'):
+                check(request('scout',path,headers=signed)[0] == 200,'Eye forwards signed GET '+path)
+                check(request('scout',path)[0] in (302,303,307,401,403),'Eye gates anonymous GET '+path)
+            for action in ('editPickList','sharePickList','postPickListMessage'):
+                status, _, body = request('scout','/_actions/'+action,'POST',signed)
+                check(status == 200 and 'AUTHP_ACCESS_TOKEN='+valid in json.loads(body).get('Cookie',''),
+                      'Eye forwards signed pick list action '+action)
+                check(request('scout','/_actions/'+action,'POST')[0] in (302,303,307,401,403),
+                      'Eye gates anonymous pick list action '+action)
+            for path, method in [('/_actions/editPickList?_action=x','POST'),('/_actions/editPickList/extra','POST'),
+                                 ('/_actions/connectScouting','POST'),('/_actions/joinPickList','POST'),
+                                 ('/_actions/editPickList','GET'),('/picklist/','GET'),('/picklist/state.json','GET'),
+                                 ('/events/2026casj/picklist/extra','GET')]:
+                check(request('scout',path,method,signed)[0] == 503,'Eye keeps '+method+' '+path+' blocked')
             check(b'Test environment' not in request('apps','/auth/login')[2],'production login branding')
             print(f'{count} routing checks passed; no real app sessions or browser iframe behavior tested.')
         finally:
