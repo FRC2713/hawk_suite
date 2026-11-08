@@ -12,6 +12,10 @@ name: Publish app image
 # hands the smoke-tested image to the push stage as an artifact, so the bytes
 # that are pushed are the bytes that were tested.
 #
+# GitHub validates each call against every job in this file, skipped ones
+# included, so both calls must allow `contents: read` and `packages: write`.
+# Each job below narrows its own token; only push can write.
+#
 # Tags: sha-<commit> always (hawk_suite's scripts/promote.py resolves it to a
 # digest), main and latest on pushes to main, <version> on v<version> tags.
 
