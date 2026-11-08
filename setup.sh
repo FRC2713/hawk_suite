@@ -3,6 +3,11 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+if [[ -f .deploy/current.json ]]; then
+  echo 'This host uses reviewed releases. Run the Deploy workflow from main.' >&2
+  exit 1
+fi
+
 if [[ -f .env ]]; then
   echo ".env already exists — edit it directly, or delete it and rerun this script."
   exit 1

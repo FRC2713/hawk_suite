@@ -1,0 +1,9 @@
+<!doctype html>
+<!-- Adapted from go-authcrunch 97408097 basic/login.template; retains provider-generated endpoints. -->
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sign in · Hawk Suite</title><link rel="stylesheet" href="/suite-assets/hawk.css"></head>
+<body><main>
+<header class="brand"><span class="mark"><img src="/suite-assets/2713-red.svg" alt="2713"></span><div><p class="eyebrow">Red Hawk Robotics</p><h1>Hawk Suite</h1></div></header>
+<section class="panel"><h2>Sign in</h2><p class="intro">Use your account from the RedHawkRobotics Slack workspace.</p>
+{{ range .Data.login_options.authenticators }}{{ if .endpoint }}<a class="button" href="{{ .endpoint }}">Sign in with Slack</a>{{ end }}{{ end }}
+</section><footer>Built by <a href="https://github.com/FRC2713">FRC 2713 Red Hawk Robotics</a></footer>
+</main></body></html>

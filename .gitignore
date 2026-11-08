@@ -2,3 +2,7 @@
 
 .deploy/
 __pycache__/
+
+# Generated authentication build and verification receipts (uploaded by CI).
+/test/authentication/candidate.json
+/test/authentication/results.json

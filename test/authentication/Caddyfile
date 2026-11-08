@@ -1,0 +1,58 @@
+{
+	admin localhost:2019
+	auto_https off
+	order authenticate before respond
+	order authorize before reverse_proxy
+	security {
+		oauth identity provider slack_fixture {
+			realm slack
+			driver generic
+			client_id fixture-client
+			client_secret fixture-secret
+			base_auth_url http://provider:8080
+			metadata_url http://provider:8080/.well-known/openid-configuration
+			scopes openid profile email
+			response_type code
+			extract sub https://slack.com/team_id https://slack.com/user_id from userinfo
+		}
+		authentication portal fixture {
+			enable identity provider slack_fixture
+			crypto default token lifetime 900
+			crypto key suite-test sign from file /private/suite.pem
+			crypto key suite-test verify from file /public/suite.pem
+			cookie insecure on
+			transform user {
+				match role slack/workspace/TAPPROVED
+				action add role suite/member authp/user
+				action overwrite aud hawk-suite
+				action overwrite iss https://apps.suite.test/
+			}
+			transform user {
+				no match role suite/member
+				block
+			}
+		}
+		authorization policy fixture {
+			set auth url /auth/
+			set token sources header cookie
+			validate bearer header
+			crypto key suite-test verify from file /public/suite.pem
+			acl rule {
+				match role suite/member
+				match iss https://apps.suite.test/
+				match aud hawk-suite
+				allow stop
+			}
+			acl default deny
+		}
+	}
+}
+:8080 {
+	route /auth* {
+		authenticate with fixture
+	}
+	route /echo {
+		authorize with fixture
+		reverse_proxy provider:8080
+	}
+}

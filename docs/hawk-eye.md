@@ -7,7 +7,7 @@ queries, duplicate query parameters, scouting mutations, and API routes remain
 blocked. This recovery action refreshes public provider metadata only.
 
 Hawk Eye is the fourth suite application, hosted at
-`https://scout.redhawkrobotics.org`. Its public surface is currently the read-only
+`https://scout.redhawkrobotics.org`. Its exposed surface is currently the read-only
 Events workspace, public event/team provider views, design documentation,
 static assets, and `/health`.
 Private scouting access and ingestion are outside this public rollout. The proxy accepts
@@ -45,7 +45,10 @@ retain the backup encryption key in the team's password manager.
 - Run the protected main Deploy workflow and use its production approval gate.
 
 The current deployment publishes read-only provider views and design docs. It does
-not provide a working scouting service or the Suite authentication contract.
+not provide a working scouting service or consume suite identity. Reviewed
+authenticated releases gate these views and docs with Slack sign-in at Caddy;
+`/health` remains public. See the
+[authentication gateway release guide](continuous-deployment.md#authentication-gateway-releases).
 Future scouting routes require an explicit review of authorization and the
 Caddy allowlist before they are made public.
 

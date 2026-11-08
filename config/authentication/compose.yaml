@@ -1,0 +1,12 @@
+# Added by the reviewed deploy path only when the release includes authentication.
+services:
+  caddy:
+    image: ${HAWK_AUTH_IMAGE:?Pin the tested authentication image in the release}
+    environment:
+      CADDY_CONFIG_REV: auth-all-apps-v1
+    volumes:
+      - ${HAWK_AUTH_CONFIG_DIR:?Private release configuration}:/etc/hawk-auth:ro
+      - ${HAWK_AUTH_CONFIG_DIR}/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${HAWK_AUTH_ASSET_DIR:?Reviewed branding assets}:/srv/auth-assets:ro
+    logging:
+      driver: none

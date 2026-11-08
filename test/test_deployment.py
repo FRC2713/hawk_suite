@@ -25,6 +25,16 @@ def release():
 
 
 class ReleaseTests(unittest.TestCase):
+    def test_authentication_digest_and_source_are_validated(self):
+        data = release()
+        data['authentication'] = dict(digest='sha256:' + 'a' * 64, revision='b' * 40)
+        self.assertIn('HAWK_AUTH_IMAGE=ghcr.io/frc2713/hawk-auth@sha256:', render(data))
+        for field in ('digest', 'revision'):
+            bad = copy.deepcopy(data)
+            bad['authentication'][field] = 'latest'
+            with self.assertRaises(ValueError):
+                validate(bad)
+
     def test_image_injection_and_incomplete_release_are_rejected(self):
         data = release()
         data['apps']['hawk-bot']['digest'] = 'latest; echo unsafe'
@@ -46,15 +56,26 @@ class ReleaseTests(unittest.TestCase):
         data = release()
         with patch.object(deploy, 'output', return_value=''):
             with self.assertRaises(ValueError):
-                deploy.check_containers(['compose'], data)
+                deploy.check_containers(['compose'], data, authenticated=False)
         rows = [{'Service': app, 'State': 'running', 'Health': 'healthy', 'ID': app} for app in ['caddy', *APPS]]
         for rows_bad in [rows[:-1], [dict(row, State='exited') for row in rows]]:
             with patch.object(deploy, 'output', return_value=json.dumps(rows_bad)):
                 with self.assertRaises(ValueError):
-                    deploy.check_containers(['compose'], data)
+                    deploy.check_containers(['compose'], data, authenticated=False)
         with patch.object(deploy, 'output', side_effect=[json.dumps(rows), 'expected', 'wrong']):
             with self.assertRaises(ValueError):
-                deploy.check_containers(['compose'], data)
+                deploy.check_containers(['compose'], data, authenticated=False)
+
+    def test_authenticated_health_checks_gateway_image_as_well_as_apps(self):
+        data = release()
+        data['authentication'] = dict(digest='sha256:' + 'a' * 64, revision='b' * 40)
+        rows = [{'Service': app, 'State': 'running', 'Health': 'healthy', 'ID': app}
+                for app in ['caddy', *APPS]]
+        with patch.object(deploy, 'output', side_effect=[json.dumps(rows), 'expected', 'wrong']):
+            with self.assertRaisesRegex(ValueError, 'wrong image running: caddy'):
+                deploy.check_containers(['compose'], data, authenticated=True)
+        with patch.object(deploy, 'output', side_effect=[json.dumps(rows)] + ['expected', 'expected'] * len(rows)):
+            deploy.check_containers(['compose'], data, authenticated=True)
 
 
 class TransactionTests(unittest.TestCase):
@@ -78,6 +99,46 @@ class TransactionTests(unittest.TestCase):
                 deploy.main(self.stack, self.target, self.request)
             run.assert_not_called()
         self.assertEqual((self.stack / '.env').read_text(), 'TOKEN_ENCRYPTION_KEY=ORIGINAL\n')
+
+    def test_authentication_cannot_be_removed_after_activation(self):
+        active_release = release()
+        active_release['authentication'] = dict(digest='sha256:' + 'a' * 64, revision='b' * 40)
+        (self.stack / '.deploy/current.json').write_text(json.dumps(
+            dict(release=active_release, env=str(self.stack / '.env'))))
+        with patch.object(deploy, 'run') as run:
+            with self.assertRaisesRegex(ValueError, 'cannot remove authentication'):
+                deploy.main(self.stack, self.target, self.request)
+            run.assert_not_called()
+
+    def test_authentication_preparation_failure_cleans_staged_secrets(self):
+        data = release()
+        data['authentication'] = dict(digest='sha256:' + 'a' * 64, revision='b' * 40)
+        (self.target / 'releases/production.json').write_text(json.dumps(data))
+        with patch.object(deploy, 'run') as run:
+            with self.assertRaisesRegex(ValueError, 'missing HAWK_AUTH'):
+                deploy.main(self.stack, self.target, self.request)
+            run.assert_not_called()
+        self.assertEqual(list((self.stack / '.deploy/config').iterdir()), [])
+
+    def test_authenticated_release_uses_overlay_exact_candidate_and_public_probe(self):
+        data = release()
+        data['authentication'] = dict(digest='sha256:' + 'a' * 64, revision='b' * 40)
+        (self.target / 'releases/production.json').write_text(json.dumps(data))
+        outputs = [json.dumps({'services': {app: {'environment': {}} for app in APPS}})]
+        for app in APPS:
+            outputs += [data['apps'][app]['revision'], json.dumps(dict(name=app, schema=1, required_env=[], optional_env=[]))]
+        outputs.append('b' * 40)
+        with patch.object(deploy, 'output', side_effect=outputs), patch.object(deploy, 'run') as run, \
+                patch.object(deploy, 'prepare_auth', return_value={'HAWK_AUTH_CONFIG_DIR': '/private/auth', 'HAWK_AUTH_ASSET_DIR': '/assets'}), \
+                patch.object(deploy.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0)) as validate_run, \
+                patch.object(deploy, 'backup', return_value=None), patch.object(deploy, 'check_containers'):
+            deploy.main(self.stack, self.target, self.request)
+        validation = validate_run.call_args
+        self.assertTrue(validation.kwargs['capture_output'])
+        self.assertIn(str(self.target / 'config/authentication/compose.yaml'), validation.args[0])
+        self.assertTrue(any('verify-authentication.py' in str(call.args[0]) for call in run.call_args_list))
+        record = json.loads((self.stack / '.deploy/current.json').read_text())
+        self.assertIn('ghcr.io/frc2713/hawk-auth@sha256:', Path(record['env']).read_text())
 
     def test_missing_required_value_and_legacy_images_do_not_apply(self):
         for name in ('HAWK_BOT_TOKEN_ENCRYPTION_KEY', 'HAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64', 'BACKUP_ENCRYPTION_KEY'):
@@ -145,6 +206,29 @@ class TransactionTests(unittest.TestCase):
 
 
 class ComposeCredentialTests(unittest.TestCase):
+    def test_auth_overlay_changes_only_gateway_and_keeps_keys_out_of_apps(self):
+        import shutil
+        if not shutil.which('docker'):
+            self.skipTest('Docker CLI required')
+        values = dict(DOMAIN='ci.example.org', HAWK_AUTH_IMAGE='ghcr.io/frc2713/hawk-auth@sha256:'+'a'*64,
+                      HAWK_AUTH_CONFIG_DIR='/private/auth', HAWK_AUTH_ASSET_DIR='/reviewed/assets')
+        with tempfile.NamedTemporaryFile(mode='w') as file:
+            file.write(deploy.env_text(values))
+            file.flush()
+            command = ['docker','compose','--project-directory',str(ROOT),'--env-file',file.name,
+                       '-f',str(ROOT/'docker-compose.yml')]
+            base = json.loads(subprocess.check_output(command+['config','--format','json']))
+            overlay = json.loads(subprocess.check_output(command+['-f',str(ROOT/'config/authentication/compose.yaml'),
+                                                                 'config','--format','json']))
+        for app in APPS:
+            self.assertEqual(base['services'][app], overlay['services'][app])
+        gateway = overlay['services']['caddy']
+        self.assertEqual(gateway['image'], values['HAWK_AUTH_IMAGE'])
+        mounts = {v['target']: v for v in gateway['volumes']}
+        self.assertEqual(mounts['/etc/caddy/Caddyfile']['source'], '/private/auth/Caddyfile')
+        self.assertTrue(mounts['/etc/hawk-auth']['read_only'])
+        self.assertEqual(gateway['logging']['driver'], 'none')
+
     def test_credentials_survive_compose_and_literal_docker_environment(self):
         import shutil
         if not shutil.which('docker'):

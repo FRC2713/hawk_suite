@@ -37,7 +37,7 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$REF" == refs/heads/main ]] || { echo 'Deploy must run from main'; exit 1; }
-          python3 scripts/release.py --require-ready
+          python3 scripts/release.py --require-ready --require-authentication
           echo "revision=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
           {
             echo "### Proposed suite revision: $GITHUB_SHA"
@@ -102,6 +102,10 @@ jobs:
           HAWK_EYE_TBA_API_KEY: ${{ secrets.HAWK_EYE_TBA_API_KEY }}
           HAWK_EYE_MATCH13_API_KEY: ${{ secrets.HAWK_EYE_MATCH13_API_KEY }}
           HAWK_EYE_MATCH13_ACCOUNT: ${{ vars.HAWK_EYE_MATCH13_ACCOUNT || 'default' }}
+          HAWK_AUTH_SLACK_CLIENT_ID: ${{ vars.HAWK_AUTH_SLACK_CLIENT_ID }}
+          HAWK_AUTH_SLACK_TEAM_ID: ${{ vars.HAWK_AUTH_SLACK_TEAM_ID }}
+          HAWK_AUTH_SLACK_CLIENT_SECRET: ${{ secrets.HAWK_AUTH_SLACK_CLIENT_SECRET }}
+          HAWK_AUTH_SIGNING_KEY_BASE64: ${{ secrets.HAWK_AUTH_SIGNING_KEY_BASE64 }}
           GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ github.token }}
         run: bash scripts/send-deploy.sh
