@@ -2,8 +2,9 @@ name: Deploy
 
 on:
   workflow_dispatch:
-  # A merge that changes what runs on the host queues a deploy. It still waits
-  # for the production environment's reviewers; merging alone deploys nothing.
+  # A merge that changes what runs on the host deploys it. The production
+  # environment has no required reviewers: reviewing and merging the PR is the
+  # approval.
   push:
     branches: [main]
     paths:

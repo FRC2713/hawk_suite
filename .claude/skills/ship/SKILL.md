@@ -51,14 +51,13 @@ ask. Never add `--admin` unless the user says to in this conversation.
 
 ## 4. Deploy
 
-Merging a change to `releases/` queues the Deploy workflow on main. It waits for
-a `production` reviewer. Find it with `gh run list -w deploy.yml -L 1` and give
-the user its URL to approve. Do not approve it yourself: that approval is the
-second look before production. Then watch it with `gh run watch <id> --exit-status`
-and report the receipt from `gh run view <id> --log`, or the failure.
+Merging a change to `releases/` starts the Deploy workflow on main, with no
+approval step. Find it with `gh run list -w deploy.yml -L 1`, watch it with
+`gh run watch <id> --exit-status`, and report the receipt from
+`gh run view <id> --log`, or the failure.
 
-If Deploy says the revision is stale, main moved during approval. Start a fresh
-run with `gh workflow run deploy.yml --ref main`.
+If Deploy says the revision is stale, another merge landed while it ran. That
+merge started its own Deploy, which carries this release too.
 
 A failure after apply may have run migrations. Report it and stop. Recovery is
 in `docs/continuous-deployment.md` and is never automatic.
