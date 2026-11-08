@@ -112,7 +112,8 @@ HTTPServer(('0.0.0.0',3000), Handler).serve_forever()
                 check(status == 200,host+' accepts shared signed cookie')
                 parsed = json.loads(body)
                 check('X-Hawk-Identity' not in parsed,host+' strips forged identity')
-                if host != 'scout': check('app_session=preserved' in parsed.get('Cookie',''),host+' preserves app login cookie')
+                check('app_session=preserved' in parsed.get('Cookie',''),host+' preserves app login cookie')
+                check('AUTHP_ACCESS_TOKEN='+valid in parsed.get('Cookie',''),host+' forwards signed suite session')
             for host in ('mod','bot'):
                 for path, method in [('/slack/events','POST'),('/slack/oauth_redirect','GET'),('/auth/slack/callback','GET'),('/health','GET')]:
                     check(request(host,path,method)[0] == 200,host+' forwards exact '+method+' '+path)

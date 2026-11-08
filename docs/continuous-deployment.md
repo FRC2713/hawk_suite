@@ -150,8 +150,13 @@ and a separate routing change.
 
 Sign-in is at `https://apps.<domain>/auth/`. The session cookie is scoped to
 the bare domain, Secure, HttpOnly, SameSite=Lax, with a 15-minute access
-token. Client-supplied `X-Hawk-Identity` is stripped before every app proxy;
-apps do not receive or trust suite identity today.
+token. Client-supplied `X-Hawk-Identity` is stripped before every app proxy.
+Mod, Bot, and Eye receive the browser's cookies unchanged, including the signed
+`AUTHP_ACCESS_TOKEN` session. An app that wants to know who is signed in must
+verify that JWT itself with the gateway's public key (issuer
+`https://apps.<domain>/`, audience `hawk-suite`, role `suite/member`, subject
+`slack:<team>:<user>`); it must never trust an identity header. Eye's
+`Authorization` header is still stripped.
 
 | Host | Public exceptions | Everything else |
 | --- | --- | --- |

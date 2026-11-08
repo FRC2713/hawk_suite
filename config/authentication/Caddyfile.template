@@ -81,9 +81,10 @@ apps.__DOMAIN__ {
 }
 (eye-protected) {
     authorize with suite
+    # Cookies pass through, like Mod and Bot: Hawk Eye verifies the signed
+    # AUTHP_ACCESS_TOKEN session itself and reads its own app cookies.
     reverse_proxy hawk-eye:3000 {
         header_up -Authorization
-        header_up -Cookie
         header_up -X-Hawk-Identity
     }
 }

@@ -45,9 +45,12 @@ retain the backup encryption key in the team's password manager.
 - Run the protected main Deploy workflow and use its production approval gate.
 
 The current deployment publishes read-only provider views and design docs. It does
-not provide a working scouting service or consume suite identity. Reviewed
-authenticated releases gate these views and docs with Slack sign-in at Caddy;
-`/health` remains public. See the
+not provide a working scouting service. Reviewed authenticated releases gate
+these views and docs with Slack sign-in at Caddy and forward the signed
+`AUTHP_ACCESS_TOKEN` session cookie to Eye; `/health` remains public. Eye
+ignores that cookie until a Hawk Eye release that verifies it is promoted and
+given `HAWK_SUITE_ISSUER` and `HAWK_SUITE_PUBLIC_KEY`. Adding those settings
+before that image is promoted fails the deploy's environment-contract check. See the
 [authentication gateway release guide](continuous-deployment.md#authentication-gateway-releases).
 Future scouting routes require an explicit review of authorization and the
 Caddy allowlist before they are made public.
