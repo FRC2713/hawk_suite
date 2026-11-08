@@ -217,7 +217,7 @@ class ComposeCredentialTests(unittest.TestCase):
             self.skipTest('Docker CLI required')
         values = dict(DOMAIN='ci.example.org', HAWK_AUTH_IMAGE='ghcr.io/frc2713/hawk-auth@sha256:'+'a'*64,
                       HAWK_AUTH_CONFIG_DIR='/private/auth', HAWK_AUTH_ASSET_DIR='/reviewed/assets',
-                      HAWK_AUTH_PUBLIC_KEY_BASE64='UFVCTElDLUtFWQ==')
+                      HAWK_AUTH_PUBLIC_KEY_BASE64='UFVCTElDLUtFWQ==', HAWK_AUTH_SLACK_TEAM_ID='TAPPROVED')
         with tempfile.NamedTemporaryFile(mode='w') as file:
             file.write(deploy.env_text(values))
             file.flush()
@@ -226,7 +226,7 @@ class ComposeCredentialTests(unittest.TestCase):
             base = json.loads(subprocess.check_output(command+['config','--format','json']))
             overlay = json.loads(subprocess.check_output(command+['-f',str(ROOT/'config/authentication/compose.yaml'),
                                                                  'config','--format','json']))
-        # Eye, Mod and Bot each verify the gateway's session themselves; Shop is
+        # Eye, Mod and Bot consume the isolated gateway's identity headers; Shop is
         # not behind the gateway and must be untouched.
         gated = ('hawk-eye', 'hawk-mod', 'hawk-bot')
         for app in APPS:
@@ -235,7 +235,7 @@ class ComposeCredentialTests(unittest.TestCase):
         for app in gated:
             app_base, gated_app = base['services'][app], overlay['services'][app]
             self.assertEqual({**app_base['environment'], 'HAWK_SUITE_ISSUER': 'https://apps.ci.example.org/',
-                              'HAWK_SUITE_PUBLIC_KEY': 'UFVCTElDLUtFWQ=='}, gated_app['environment'],
+                              'HAWK_SUITE_TRUST_PROXY': 'true', 'HAWK_SUITE_TEAM_ID': 'TAPPROVED'}, gated_app['environment'],
                              msg=app)
             self.assertEqual({k: v for k, v in app_base.items() if k != 'environment'},
                              {k: v for k, v in gated_app.items() if k != 'environment'}, msg=app)
