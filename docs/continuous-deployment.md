@@ -133,3 +133,113 @@ Hawk Eye provider secrets are `HAWK_EYE_TBA_API_KEY` and
 variable, default `default`, used for stable account-level cache/quota tracking.
 These reach only the Hawk Eye container. Private scouting endpoints remain
 outside the public proxy allowlist.
+
+## Authentication gateway releases
+
+Caddy gates Mod, Bot, and Eye's read-only pages behind a shared Slack sign-in.
+Shop keeps its own Onshape login and is not behind the gateway: the gateway's
+SameSite=Lax cookie would break the Onshape iframe, so excluding Shop preserves
+its existing direct and embedded access. Its card remains in the authenticated
+portal. No suite membership grants any
+app's admin rights; each app keeps its own permissions. Signing out of the
+gateway does not sign out of individual apps.
+
+Sign-in is at `https://apps.<domain>/auth/`. The session cookie is scoped to
+the bare domain, Secure, HttpOnly, SameSite=Lax, with a 15-minute access
+token. Client-supplied `X-Hawk-Identity` is stripped before every app proxy;
+apps do not receive or trust suite identity today.
+
+| Host | Public exceptions | Everything else |
+| --- | --- | --- |
+| `apps` | Native sign-in/callback routes, public branding | Portal requires login; unknown paths 404 |
+| `mod`, `bot` | POST `/slack/events`; GET `/slack/oauth_redirect`, `/auth/slack/callback`; GET/HEAD `/health` | Gateway membership required, then the existing app login/permissions |
+| `shop` | Entire host bypasses the suite login gate | Existing Onshape login and app permissions |
+| `scout` | GET/HEAD `/health` | Approved read-only pages require gateway membership; other routes 503 |
+
+The Deploy plan requires an `authentication` entry in the release manifest;
+its absence intentionally blocks deployment until a tested gateway image is
+published and promoted. Existing app image entries and logins stay unchanged.
+An authenticated release adds the generated private configuration and
+branding Compose overlay, verifies the gateway source label and running image
+ID, and checks anonymous/forged access denial after deployment. An active
+authenticated release cannot be replaced with a manifest that removes
+authentication.
+
+### Publishing and promoting the gateway image
+
+1. Run the **Authentication candidate** workflow with `publish=true` on the
+   reviewed revision. It builds and tests native amd64/arm64 images and
+   publishes only the tested archives. Record the suite source SHA and the
+   published **index** digest from its summary.
+2. Add this entry to `releases/production.json`, keeping all four app entries
+   unchanged:
+
+   ```json
+   "authentication": {
+     "revision": "<40-character suite SHA from the candidate workflow>",
+     "digest": "sha256:<64-character published index digest>"
+   }
+   ```
+
+   The image is allowlisted to `ghcr.io/frc2713/hawk-auth`. The host validates
+   its `io.hawk.suite-source-revision` label and exact running image ID.
+3. Add the production Slack redirect URL to the dedicated sign-in app:
+   `https://apps.<domain>/auth/oauth2/slack/authorization-code-callback`.
+   Sign-in scopes are `openid profile email`.
+4. Set Actions variables `HAWK_AUTH_SLACK_CLIENT_ID` and
+   `HAWK_AUTH_SLACK_TEAM_ID`; set secrets `HAWK_AUTH_SLACK_CLIENT_SECRET` and
+   `HAWK_AUTH_SIGNING_KEY_BASE64` (a fresh unencrypted RSA key, at least 3072
+   bits, base64-encoded PEM on one line). Never reuse Mod's or Bot's keys for
+   this, and never paste any of these into an issue, chat, or command line.
+5. Merge the pinned release and run **Deploy** from main through the existing
+   production approval gate.
+6. In a fresh browser session, confirm Mod, Bot, and Eye redirect anonymous
+   users to the portal; sign in with Slack and confirm each app's own login
+   still works; sign out of the gateway and confirm Mod/Bot/Eye are gated
+   again. Confirm Shop's direct and embedded Onshape flows are unaffected.
+
+### Private runtime configuration and recovery
+
+Each release stores mode-600 auth files (signing keys, rendered Caddyfile,
+portal templates) under `.deploy/config/<release-id>/auth`, outside the clean
+source worktree, mounted read-only into the gateway. Gateway logs are
+discarded (`logging: driver: none`) because the pinned upstream can log token
+contents; use deployment checks and container state for diagnostics instead
+of turning that logging on against real sessions.
+
+Do not recover by removing the `authentication` manifest entry or reverting
+to an unprotected Caddyfile. For an emergency, the host owner:
+
+1. Identifies the running `hawk-suite` Caddy container and inspects its mounts
+   to find the **host source** mounted at `/etc/caddy/Caddyfile`. This is
+   `<stack>/.deploy/config/<release-id>/auth/Caddyfile`. Use the actual running
+   mount, since a failed deployment may differ from `current.json`.
+2. Validates the rendered maintenance file inside that container with
+   `caddy validate --config /etc/hawk-auth/Caddyfile.maintenance --adapter caddyfile`.
+   Stop if validation fails.
+3. On the **host**, saves the current private Caddyfile in a root-only backup,
+   then copies the sibling `Caddyfile.maintenance` contents into that host
+   Caddyfile **in place**, retaining mode 600. Do not rename or replace the file:
+   the running bind mount must continue referencing the same inode. Neither
+   `/etc/caddy/Caddyfile` nor `/etc/hawk-auth` is writable inside the container.
+4. Runs `caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile` inside
+   the same container, then verifies all five hosts return 503. Keep the
+   maintenance content at the host startup path until a reviewed authenticated
+   release is restored, so restarting the container retains maintenance mode.
+
+All five hosts return 503, including integrations, until an authenticated
+release is restored. Existing encrypted backup/schema recovery rules still
+apply; do not delete volumes or restore databases for a routing failure.
+
+### Local verification
+
+- `python3 scripts/build-authentication.py`
+- `python3 scripts/test-authentication.py`
+- Install Python `cryptography==46.0.4`, then run
+  `python3 scripts/test-auth-routing.py` (Docker required).
+
+The routing probe substitutes HTTP termination and mock provider metadata,
+uses synthetic keys/JWTs and disposable echo backends, and removes its
+containers and network afterward. It verifies routing and app-cookie
+preservation, not real app permissions, Slack delivery, browser cookie
+storage, or Onshape iframe compatibility.

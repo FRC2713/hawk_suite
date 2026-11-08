@@ -1,0 +1,23 @@
+# Local candidate only. Build inputs are pinned; runtime identity is recorded
+# by scripts/build-authentication.py. No registry push or deployment occurs.
+FROM golang:1.26.4-alpine@sha256:3ad57304ad93bbec8548a0437ad9e06a455660655d9af011d58b993f6f615648 AS build
+RUN apk add --no-cache git python3
+WORKDIR /src/library
+RUN git init && git remote add origin https://github.com/greenpau/go-authcrunch.git && \
+    git fetch --depth 1 origin 97408097f0d39c58be16c80131486edbbb358798 && git checkout --detach FETCH_HEAD
+COPY userinfo-subject.patch /tmp/userinfo-subject.patch
+COPY userinfo_subject_test.go hawk_slack.go hawk_slack_test.go ./pkg/idp/oauth/
+COPY apply-suite-patch.py /tmp/apply-suite-patch.py
+RUN git apply /tmp/userinfo-subject.patch && python3 /tmp/apply-suite-patch.py && \
+    gofmt -w pkg/idp/oauth/hawk_slack*.go pkg/idp/oauth/userinfo_subject_test.go pkg/idp/oauth/authenticate.go pkg/idp/oauth/validator.go && \
+    go test ./pkg/idp/oauth -count=1
+WORKDIR /src/caddy
+RUN git init && git remote add origin https://github.com/authcrunch/authcrunch.git && \
+    git fetch --depth 1 origin 157aea368e7662e592159d48c74f8249725685f1 && git checkout --detach FETCH_HEAD && \
+    go mod edit -replace github.com/greenpau/go-authcrunch=/src/library && \
+    CGO_ENABLED=0 go build -mod=readonly -trimpath -o /out/caddy .
+FROM ghcr.io/authcrunch/authcrunch@sha256:90a0f5904ddcd5faac3ee8872649bf29abda465a9bac45bcfb3feef2ca18ce60
+COPY --from=build /out/caddy /usr/bin/caddy
+LABEL io.hawk.auth-candidate="slack-v1" \
+      io.hawk.auth-library-revision="97408097f0d39c58be16c80131486edbbb358798" \
+      io.hawk.auth-source-revision="157aea368e7662e592159d48c74f8249725685f1"

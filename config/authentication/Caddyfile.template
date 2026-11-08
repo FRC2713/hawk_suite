@@ -1,0 +1,173 @@
+{
+	admin localhost:2019
+	log {
+		output discard
+	}
+	order authenticate before respond
+	order authorize before reverse_proxy
+	security {
+		oauth identity provider slack_suite {
+			realm slack
+			driver generic
+			client_id __CLIENT_ID__
+			client_secret __CLIENT_SECRET__
+			base_auth_url https://slack.com
+			metadata_url https://slack.com/.well-known/openid-configuration
+			scopes openid profile email
+			response_type code
+			extract sub https://slack.com/team_id https://slack.com/user_id from userinfo
+		}
+		authentication portal suite {
+			ui {
+				template login /etc/hawk-auth/login.template
+				template portal /etc/hawk-auth/portal.template
+			}
+			enable identity provider slack_suite
+			crypto default token lifetime 900
+			crypto key suite-production sign from file /etc/hawk-auth/private.pem
+			crypto key suite-production verify from file /etc/hawk-auth/public.pem
+			cookie insecure off
+			cookie domain __DOMAIN__
+			cookie samesite lax
+			transform user {
+				match role slack/workspace/__TEAM_ID__
+				action add role suite/member authp/user
+				action overwrite aud hawk-suite
+				action overwrite iss https://apps.__DOMAIN__/
+			}
+			transform user {
+				no match role suite/member
+				block
+			}
+		}
+		authorization policy suite {
+			set auth url https://apps.__DOMAIN__/auth/
+			set token sources header cookie
+			validate bearer header
+			crypto key suite-production verify from file /etc/hawk-auth/public.pem
+			acl rule {
+				match role suite/member
+				match iss https://apps.__DOMAIN__/
+				match aud hawk-suite
+				allow stop
+			}
+			acl default deny
+		}
+	}
+}
+
+(auth-assets) {
+    handle_path /suite-assets/* {
+        root * /srv/auth-assets
+        file_server {
+            hide *.template *.md
+        }
+    }
+}
+(auth-portal) {
+    header Cache-Control "no-store"
+    respond /auth/api/refresh_token "Sign in again to renew your session." 401
+    route /auth* {
+        authenticate with suite
+    }
+}
+apps.__DOMAIN__ {
+  route {
+    import auth-assets
+    import auth-portal
+    redir / /auth/portal 302
+    respond "Not found" 404
+}
+}
+(eye-protected) {
+    authorize with suite
+    reverse_proxy hawk-eye:3000 {
+        header_up -Authorization
+        header_up -Cookie
+        header_up -X-Hawk-Identity
+    }
+}
+scout.__DOMAIN__ {
+  route {
+    @health {
+        method GET HEAD
+        path /health
+    }
+    handle @health {
+        reverse_proxy hawk-eye:3000
+    }
+    @pages {
+        method GET HEAD
+        path / /docs/* /_astro/* /pagefind/* /brand/* /favicon.ico /favicon.svg
+    }
+    route @pages {
+        import eye-protected
+    }
+    @events {
+        method GET HEAD
+        path_regexp events ^/(events/[0-9]{4}[a-z0-9]+(/(teams/[1-9][0-9]{0,4}|updates[.]json))?|teams/[1-9][0-9]{0,4})/?$
+    }
+    route @events {
+        import eye-protected
+    }
+    respond "Hawk Eye scouting is not available yet." 503
+  }
+    handle_errors {
+        respond "Hawk Eye is temporarily unavailable." 503
+    }
+}
+# Existing app cookies and logins are preserved. No suite identity is trusted by apps.
+(shop-proxy) {
+    reverse_proxy hawk-shop:3000 {
+        header_up -X-Hawk-Identity
+        header_down Location "^http://" "https://"
+    }
+}
+# Shop retains its own Onshape authentication, including the embedded view.
+# Its card remains in the authenticated portal; direct access has no suite gate.
+shop.__DOMAIN__ {
+    import shop-proxy
+}
+(slack-app) {
+    @events {
+        method POST
+        path /slack/events
+    }
+    @callbacks {
+        method GET
+        path /slack/oauth_redirect /auth/slack/callback
+    }
+    @health {
+        method GET HEAD
+        path /health
+    }
+    handle @events {
+        reverse_proxy {args[0]} {
+            header_up -X-Hawk-Identity
+        }
+    }
+    handle @callbacks {
+        reverse_proxy {args[0]} {
+            header_up -X-Hawk-Identity
+        }
+    }
+    handle @health {
+        reverse_proxy {args[0]} {
+            header_up -X-Hawk-Identity
+        }
+    }
+    handle {
+        route {
+            authorize with suite
+            reverse_proxy {args[0]} {
+                header_up -X-Hawk-Identity
+            }
+        }
+    }
+}
+mod.__DOMAIN__ {
+    import slack-app hawk-mod:3000
+}
+bot.__DOMAIN__ {
+    import slack-app hawk-bot:3000
+}

@@ -1,0 +1,16 @@
+# A local regression experiment, not a publishable production image.
+FROM golang:1.26.4-alpine@sha256:3ad57304ad93bbec8548a0437ad9e06a455660655d9af011d58b993f6f615648
+RUN apk add --no-cache git
+WORKDIR /src
+RUN git init && git remote add origin https://github.com/greenpau/go-authcrunch.git && \
+    git fetch --depth 1 origin 97408097f0d39c58be16c80131486edbbb358798 && \
+    git checkout --detach FETCH_HEAD
+COPY userinfo-subject.patch /tmp/userinfo-subject.patch
+COPY userinfo_subject_test.go pkg/idp/oauth/userinfo_subject_test.go
+# Prove the regression detects the unmodified library before applying the fix.
+RUN go test ./pkg/idp/oauth -run '^$' && \
+    if go test ./pkg/idp/oauth -run TestHawkUserInfoSubjectBinding -count=1; then \
+      echo 'Regression unexpectedly passed without the patch'; exit 1; fi
+RUN git apply /tmp/userinfo-subject.patch && \
+    gofmt -w pkg/idp/oauth/userinfo_subject_test.go && \
+    go test ./pkg/idp/oauth -count=1

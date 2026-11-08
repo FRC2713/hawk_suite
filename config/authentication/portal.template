@@ -1,0 +1,10 @@
+<!doctype html>
+<!-- Adapted from go-authcrunch 97408097 basic/portal.template; native authenticated portal and logout. -->
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Apps · Hawk Suite</title><link rel="stylesheet" href="/suite-assets/hawk.css"></head>
+<body><main>
+<header class="brand"><span class="mark"><img src="/suite-assets/2713-red.svg" alt="2713"></span><div><p class="eyebrow">Red Hawk Robotics</p><h1>Hawk Suite</h1></div></header>
+<p class="intro">Team apps, together in one place.</p>
+<div class="apps"><a class="app" href="https://scout.__DOMAIN__/"><h2>Hawk Eye</h2><p>Team events, match schedules, and scouting design docs.</p><span class="open">Open Hawk Eye ?</span></a><a class="app" href="https://shop.__DOMAIN__/"><h2>Hawk Shop</h2><p>Manufacturing kanban, driven by Onshape.</p><span class="open">Open Hawk Shop ?</span></a><a class="app" href="https://mod.__DOMAIN__/"><h2>Hawk Mod</h2><p>Youth-protection monitoring for Slack.</p><span class="open">Open Hawk Mod ?</span></a><a class="app" href="https://bot.__DOMAIN__/"><h2>Hawk Bot</h2><p>Team assistant for Slack.</p><span class="open">Open Hawk Bot ?</span></a></div>
+<div class="account"><span class="badge">Red Hawk Robotics</span><a href="{{ pathjoin .ActionEndpoint "/logout" }}">Sign out</a></div>
+<footer>Built by <a href="https://github.com/FRC2713">FRC 2713 Red Hawk Robotics</a></footer>
+</main></body></html>

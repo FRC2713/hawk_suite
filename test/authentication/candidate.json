@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "image_id": "sha256:76ccf427a9e8b9469c45fca258361191501bb9e10789dec14af57ed99f36579c",
+  "manifest_digest": "sha256:76ccf427a9e8b9469c45fca258361191501bb9e10789dec14af57ed99f36579c",
+  "platform": "linux/amd64",
+  "source_sha256": {
+    "Dockerfile.candidate": "e687f061c1acf7cdb0cf43de25a931aa110b8a1f0dc63241b608fc932a36b1b5",
+    "userinfo-subject.patch": "7ca3d5272e6d98158102e543142959ac844f1ce2e36429c2b7e9f999a6d4bf67",
+    "userinfo_subject_test.go": "e55c28dbb4db8091716258efcaf07b559c2042f04cef7ecbd96557fd0e261201",
+    "apply-suite-patch.py": "95065e4fa81240688cbe35e28f8b02dab3707e6f5bf50ea68000ed444ec9846c",
+    "hawk_slack.go": "d366c6462007c7ff5a009fedfeb18bceadea6b4b70d560fbb3a194c6367bf9c1",
+    "hawk_slack_test.go": "cf99b221b5729c927cc2261badb145525a1a64f7a792fe423796dddb8c695c8b"
+  },
+  "published": false
+}

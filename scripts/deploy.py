@@ -12,7 +12,8 @@ import sys
 import tarfile
 import tempfile
 from datetime import datetime, timezone
-from release import APPS, image, validate
+from release import APPS, image, validate, auth_image
+from auth_config import prepare as prepare_auth
 from backup_auth import backup_tag
 
 
@@ -74,7 +75,7 @@ def old_token(path):
     return ''
 
 
-def check_containers(compose, release):
+def check_containers(compose, release, authenticated):
     raw = output(compose + ['ps', '--all', '--format', 'json'])
     # Compose versions emit either a JSON array or one JSON object per line.
     rows = json.loads(raw) if raw.startswith('[') else [json.loads(line) for line in raw.splitlines() if line]
@@ -84,8 +85,9 @@ def check_containers(compose, release):
     for app, row in actual.items():
         if row['State'] != 'running' or (app != 'caddy' and row.get('Health') != 'healthy'):
             raise ValueError('container not ready: ' + app)
-        if app in APPS:
-            expected = output(['docker', 'image', 'inspect', '--format', '{{.Id}}', image(app, release['apps'][app])])
+        if app in APPS or authenticated:
+            ref = auth_image(release) if app == 'caddy' else image(app, release['apps'][app])
+            expected = output(['docker', 'image', 'inspect', '--format', '{{.Id}}', ref])
             running = output(['docker', 'inspect', '--format', '{{.Image}}', row['ID']])
             if running != expected:
                 raise ValueError('wrong image running: ' + app)
@@ -160,9 +162,12 @@ def main(stack, target, request):
     if old and old != values['TOKEN_ENCRYPTION_KEY']:
         raise ValueError('TOKEN_ENCRYPTION_KEY differs from the host')
     release = validate(json.loads((target / 'releases/production.json').read_text()))
+    authenticated = 'authentication' in release
     if any(item['contract'] != 1 for item in release['apps'].values()):
         raise ValueError('bootstrap release: promote contract-v1 images for all apps first')
-    if any(name.endswith(('_IMAGE', '_TAG')) for name in values):
+    if active and 'authentication' in active['release'] and not authenticated:
+        raise ValueError('cannot remove authentication from an authenticated release')
+    if any(name.endswith(('_IMAGE', '_TAG', '_DIR')) for name in values):
         raise ValueError('image overrides belong in the release file')
     sha = request['suite_sha']
     release_id = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S') + '-' + sha[:12]
@@ -172,13 +177,17 @@ def main(stack, target, request):
     resolved = dict(values)
     for app in APPS:
         resolved[app.upper().replace('-', '_') + '_IMAGE'] = image(app, release['apps'][app])
-    envfile.write_text(env_text(resolved))
-    os.chmod(envfile, 0o600)
     compose = ['docker', 'compose', '--project-name', 'hawk-suite', '--project-directory', str(target),
                '--env-file', str(envfile), '-f', str(target / 'docker-compose.yml')]
     applied = False
     saved = None
     try:
+        if authenticated:
+            resolved.update(prepare_auth(target, config_dir / 'auth', values))
+            resolved['HAWK_AUTH_IMAGE'] = auth_image(release)
+            compose += ['-f', str(target / 'config/authentication/compose.yaml')]
+        envfile.write_text(env_text(resolved))
+        os.chmod(envfile, 0o600)
         config = json.loads(output(compose + ['config', '--format', 'json']))
         run(compose + ['pull', '--quiet'])
         for app in APPS:
@@ -201,17 +210,34 @@ def main(stack, target, request):
             run(['docker', 'run', '--rm', '--network', 'none', '--env-file', str(raw_env), '--entrypoint', 'node', ref,
                  'scripts/deploy-check.mjs'])
             raw_env.unlink()
-        # Validate proposed routing without touching the running Caddy process.
-        run(['docker', 'run', '--rm', '-e', 'DOMAIN=' + values['DOMAIN'], '-v', str(target / 'Caddyfile') + ':/etc/caddy/Caddyfile:ro',
-             'caddy:2-alpine', 'caddy', 'validate', '--config', '/etc/caddy/Caddyfile', '--adapter', 'caddyfile'])
+        # Capture auth parser output: upstream diagnostics may contain credentials.
+        if authenticated:
+            revision = output(['docker', 'image', 'inspect', '--format', '{{index .Config.Labels "io.hawk.suite-source-revision"}}', auth_image(release)])
+            if revision != release['authentication']['revision']:
+                raise ValueError('authentication candidate source revision mismatch')
+            result = subprocess.run(compose + ['run', '--rm', '--no-deps', 'caddy',
+                'caddy', 'validate', '--config', '/etc/caddy/Caddyfile', '--adapter', 'caddyfile'],
+                capture_output=True)
+            if result.returncode:
+                raise ValueError('authentication gateway configuration validation failed')
+        else:
+            run(['docker', 'run', '--rm', '-e', 'DOMAIN=' + values['DOMAIN'], '-v', str(target / 'Caddyfile') + ':/etc/caddy/Caddyfile:ro',
+                 'caddy:2-alpine', 'caddy', 'validate', '--config', '/etc/caddy/Caddyfile', '--adapter', 'caddyfile'])
         saved = backup(state, release_id, values['BACKUP_ENCRYPTION_KEY'])
         # Applying migrations is the point after which image-only recovery may
         # be unsafe. Do not silently restore a database or restart an older image.
         applied = True
         run(compose + ['up', '-d', '--remove-orphans', '--wait', '--wait-timeout', '180'])
-        run(compose + ['exec', '-T', 'caddy', 'caddy', 'reload', '--config', '/etc/caddy/Caddyfile'])
-        check_containers(compose, release)
+        reload_cmd = compose + ['exec', '-T', 'caddy', 'caddy', 'reload', '--config', '/etc/caddy/Caddyfile']
+        if authenticated:
+            # Upstream auth parser diagnostics may contain credentials; suppress them.
+            run(reload_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        else:
+            run(reload_cmd)
+        check_containers(compose, release, authenticated)
         run([str(target / 'scripts/verify-https.sh')], env=dict(os.environ, DOMAIN=values['DOMAIN']))
+        if authenticated:
+            run([sys.executable, str(target / 'scripts/verify-authentication.py'), values['DOMAIN']])
         record = dict(suite_sha=sha, release=release, env=str(envfile), directory=str(target), backup=saved, id=release_id)
         (config_dir / 'record.json').write_text(json.dumps(record, indent=2) + '\n')
         if active:

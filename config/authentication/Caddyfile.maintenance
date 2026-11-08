@@ -1,0 +1,10 @@
+{
+    admin localhost:2019
+    log {
+        output discard
+    }
+}
+apps.__DOMAIN__, shop.__DOMAIN__, mod.__DOMAIN__, bot.__DOMAIN__, scout.__DOMAIN__ {
+    header Retry-After "300"
+    respond "Hawk Suite is temporarily unavailable. Please try again shortly." 503
+}
