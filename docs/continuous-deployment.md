@@ -56,6 +56,7 @@ Retain existing credentials. The complete production secret names are:
 | `DEPLOY_SSH_KEY` | Host provisioning output, PEM or single-line base64 |
 | `DEPLOY_KNOWN_HOSTS` | Verified host public key entry |
 | `DEPLOY_HOST`, `DEPLOY_USER` | Server address and `deploy` |
+| `ONSHAPE_WEBHOOK_SECRET` | Optional random shared secret for Onshape callbacks; enable together with `ONSHAPE_WEBHOOK_BASE_URL` |
 | `ONSHAPE_ACCESS_KEY`, `ONSHAPE_SECRET_KEY` | Optional hawk-shop Onshape API key; without it CAD features return 409 |
 | `SLACK_SIGNING_SECRET`, `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`, `SLACK_STATE_SECRET` | hawk-mod's Slack application |
 | `TOKEN_ENCRYPTION_KEY` | Existing hawk-mod encryption key; do not regenerate |
@@ -66,7 +67,7 @@ Retain existing credentials. The complete production secret names are:
 | `HAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64` | Required hawk-bot Calendar service account key |
 | `BACKUP_ENCRYPTION_KEY` | Separate backup key, minimum 32 characters |
 
-Variables are `DOMAIN`, `LOG_MODE`, `TZ`, `MANAGED_USERGROUPS`, `REPORT_TIME`, `LIFECYCLE_SHEET_ID` and `ONSHAPE_BASE_URL` (optional, default `https://cad.onshape.com`). Defaults are defined in the workflow. `REPORT_TIME` is an HH:MM seed, not cron; the saved `/hawkmod config` value wins. `MANAGED_USERGROUPS` is the administrator-editable group allowlist. Student and adult roles come from the lifecycle sheet. The old `STUDENT_USERGROUP`, `ADULT_USERGROUP`, `DIGEST_CRON` and `QUARTERLY_CRON` knobs are retired.
+Variables are `DOMAIN`, `LOG_MODE`, `TZ`, `MANAGED_USERGROUPS`, `REPORT_TIME`, `LIFECYCLE_SHEET_ID` and `ONSHAPE_BASE_URL` (optional, default `https://cad.onshape.com`) and `ONSHAPE_WEBHOOK_BASE_URL` (optional public Shop origin, such as `https://shop.<domain>`). Defaults are defined in the workflow. `REPORT_TIME` is an HH:MM seed, not cron; the saved `/hawkmod config` value wins. `MANAGED_USERGROUPS` is the administrator-editable group allowlist. Student and adult roles come from the lifecycle sheet. The old `STUDENT_USERGROUP`, `ADULT_USERGROUP`, `DIGEST_CRON` and `QUARTERLY_CRON` knobs are retired.
 
 Private GHCR images are pulled using the approved workflow job's short-lived
 `GITHUB_TOKEN`, limited to Packages read. The transport sends it through SSH

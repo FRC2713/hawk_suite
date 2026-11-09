@@ -65,6 +65,8 @@ jobs:
           # hawk-shop's Onshape API key. Optional: unset, CAD features return
           # 409 and the rest of Shop works. The base URL defaults in Compose.
           ONSHAPE_BASE_URL: ${{ vars.ONSHAPE_BASE_URL }}
+          ONSHAPE_WEBHOOK_BASE_URL: ${{ vars.ONSHAPE_WEBHOOK_BASE_URL }}
+          ONSHAPE_WEBHOOK_SECRET: ${{ secrets.ONSHAPE_WEBHOOK_SECRET }}
 
           ONSHAPE_ACCESS_KEY: ${{ secrets.ONSHAPE_ACCESS_KEY }}
           ONSHAPE_SECRET_KEY: ${{ secrets.ONSHAPE_SECRET_KEY }}

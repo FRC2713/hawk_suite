@@ -16,7 +16,7 @@ services:
       # hawk-deploy reloads the config explicitly, but only from the version
       # installed on the host; bump this when changing the Caddyfile to force a
       # recreate regardless of which hawk-deploy the host is running.
-      CADDY_CONFIG_REV: "7"
+      CADDY_CONFIG_REV: "8"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./portal:/srv/portal:ro
@@ -44,6 +44,8 @@ services:
       ONSHAPE_ACCESS_KEY: ${ONSHAPE_ACCESS_KEY:-}
       ONSHAPE_SECRET_KEY: ${ONSHAPE_SECRET_KEY:-}
       ONSHAPE_BASE_URL: ${ONSHAPE_BASE_URL:-https://cad.onshape.com}
+      ONSHAPE_WEBHOOK_SECRET: ${ONSHAPE_WEBHOOK_SECRET:-}
+      ONSHAPE_WEBHOOK_BASE_URL: ${ONSHAPE_WEBHOOK_BASE_URL:-}
 
       # --- Deployment ------------------------------------------------------
       # Public origin; Shop accepts writes only from this origin.

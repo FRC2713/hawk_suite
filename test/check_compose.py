@@ -16,6 +16,8 @@ assert mod['LIFECYCLE_SHEET_ID'] == 'ci-sheet'
 assert 'LIFECYCLE_SHEET_ID' not in bot
 assert not set(mod).intersection({'DIGEST_CRON', 'QUARTERLY_CRON', 'STUDENT_USERGROUP', 'ADULT_USERGROUP'})
 assert services['hawk-shop']['environment']['APP_URL'] == 'https://shop.ci.example.org'
+assert services['hawk-shop']['environment']['ONSHAPE_WEBHOOK_SECRET'] == 'ci-webhook-secret'
+assert services['hawk-shop']['environment']['ONSHAPE_WEBHOOK_BASE_URL'] == 'https://shop.ci.example.org'
 for app in ('hawk-shop', 'hawk-mod', 'hawk-bot', 'hawk-eye'):
     assert '@sha256:' in services[app]['image']
 
