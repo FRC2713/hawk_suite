@@ -56,6 +56,23 @@
 			}
 			acl default deny
 		}
+
+		authorization policy shop_session {
+			inject headers with claims
+			inject header X-Hawk-Slack-Team from slack_team_id
+			inject header X-Hawk-Slack-User from slack_user_id
+			disable auth redirect
+			set token sources header cookie
+			validate bearer header
+			crypto key suite-production verify from file /etc/hawk-auth/public.pem
+			acl rule {
+				match role suite/member
+				match iss https://apps.__DOMAIN__/
+				match aud hawk-suite
+				allow stop
+			}
+			acl default deny
+		}
 	}
 }
 
@@ -210,9 +227,45 @@ shop.__DOMAIN__ {
     route @shopOnshapeWebhook {
         import shop-proxy
     }
-    # The gateway cookie is SameSite=Lax, so it never reaches Onshape's iframe.
-    # An anonymous embedded request gets only Shop's top-level "Open Hawk Shop"
-    # continuation page; Shop serves nothing else without an identity.
+    # The popup must authenticate using Suite's ordinary top-level session.
+    # Never accept the embedded cookie as the authority for issuing new codes.
+    @shopPopup path /auth/embed/authorize /auth/embed/authorize/
+    route @shopPopup {
+        request_header -Authorization
+        import shop-protected
+    }
+    # These endpoints expose only the connection UI, static assets, and the
+    # proof-bound code exchange. Shop still gates all data routes itself.
+    @shopEmbedAssets {
+        method GET HEAD
+        path /_astro/* /brand/* /favicon.svg
+    }
+    route @shopEmbedAssets {
+        import shop-proxy
+    }
+    @shopEmbedExchange {
+        method POST
+        path /auth/embed/exchange
+    }
+    route @shopEmbedExchange {
+        import shop-proxy
+    }
+    # CHIPS keeps this copy of the Suite token inside Onshape's partition.
+    # Validate its signature, expiry, issuer, audience and role with the same
+    # policy as the ordinary Suite cookie; never trust its mere presence.
+    @shopEmbeddedSession header Cookie *__Host-hawk-shop-embedded=*
+    route @shopEmbeddedSession {
+        request_header Authorization "Bearer {http.request.cookie.__Host-hawk-shop-embedded}"
+        authorize with shop_session
+        import shop-proxy
+    }
+    # Fetches must receive 401 when the embedded cookie disappears, rather
+    # than following a redirect into Slack inside the iframe.
+    @shopApi path /api/* /auth/embed/session
+    route @shopApi {
+        authorize with shop_session
+        import shop-proxy
+    }
     @shopIframe {
         method GET HEAD
         path /onshape_connector /onshape_connector/
@@ -225,6 +278,20 @@ shop.__DOMAIN__ {
         import shop-protected
     }
   }
+  handle_errors {
+    @expiredEmbed {
+        expression {err.status_code} == 401 || {err.status_code} == 403
+        method GET HEAD
+        path /onshape_connector /onshape_connector/
+        header Sec-Fetch-Dest iframe
+    }
+    route @expiredEmbed {
+        import clear-suite-identity
+        import shop-proxy
+    }
+    respond "Sign in with Hawk Suite to continue." {err.status_code}
+  }
+
 }
 (slack-app) {
     @events {

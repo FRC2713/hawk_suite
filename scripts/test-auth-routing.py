@@ -162,7 +162,7 @@ HTTPServer(('0.0.0.0',3000), Handler).serve_forever()
                     check(request(host,path,method)[0] == 200,host+' forwards exact '+method+' '+path)
                 for path, method in [('/slack/events','GET'),('/slack/events/extra','POST'),('/slack/install','GET'),('/auth/slack/callback','POST')]:
                     check(request(host,path,method)[0] != 200,host+' protects '+method+' '+path)
-            for path in ('/', '/onshape_connector', '/signin', '/api/kanban/cards', '/api/files/x.png', '/_astro/app.js'):
+            for path in ('/', '/onshape_connector', '/signin', '/api/kanban/cards', '/api/files/x.png'):
                 check(request('shop',path)[0] in (302,303,307,401,403), 'Shop gates anonymous '+path)
                 check(request('shop',path,headers=signed)[0] == 200, 'Shop forwards signed '+path)
             check(request('shop','/api/kanban/cards','POST')[0] in (302,303,307,401,403), 'Shop gates anonymous POST')
@@ -170,6 +170,30 @@ HTTPServer(('0.0.0.0',3000), Handler).serve_forever()
                 for method in ('GET', 'HEAD'):
                     check(request('shop',path,method)[0] == 200, 'Shop keeps '+method+' '+path+' public')
                 check(request('shop',path,'POST')[0] in (302,303,307,401,403), 'Shop gates POST '+path)
+            for path in ('/api/kanban/cards', '/api/mfg/parts/actions', '/api/files/x.png', '/auth/embed/session'):
+                for method in ('GET', 'POST'):
+                    status, _, body = request('shop', path, method, headers={**forged, 'Cookie': '__Host-hawk-shop-embedded='+valid})
+                    received = {k.lower(): v for k, v in json.loads(body).items()} if status == 200 else {}
+                    check(status == 200 and all(received.get(k.lower()) == v for k, v in identity.items()),
+                          'Shop validates embedded session '+method+' '+path)
+                    for value in ('forged', token(exp=int(time.time())-120), token(aud='wrong'), token(iss='https://evil.test/'), token(roles=['admin'])):
+                        check(request('shop', path, method, headers={**forged, 'Cookie': '__Host-hawk-shop-embedded='+value})[0] in (401,403),
+                              'Shop rejects invalid embedded session '+method+' '+path)
+            for value in ('invalid', token(exp=int(time.time())-120)):
+                status, _, body = request('shop','/onshape_connector?documentId=fixture', headers={**forged, 'Cookie': '__Host-hawk-shop-embedded='+value, 'Sec-Fetch-Dest':'iframe'})
+                received = {k.lower(): v for k, v in json.loads(body).items()} if status == 200 else {}
+                check(status == 200 and not any(k.lower() in received for k in forged), 'Expired embedded session can reconnect without identity')
+            for path in ('/auth/embed/authorize?challenge=fixture', '/auth/embed/authorize/?challenge=fixture'):
+                check(request('shop',path,headers={'Cookie':'__Host-hawk-shop-embedded='+valid})[0] != 200,
+                      'Embedded session cannot mint new connection codes '+path)
+            for path in ('/_astro/app.js', '/brand/2713-red.svg', '/favicon.svg'):
+                status, _, body = request('shop',path,headers=forged)
+                received = {k.lower(): v for k, v in json.loads(body).items()}
+                check(status == 200 and not any(k.lower() in received for k in forged), 'Shop connection assets clear identity '+path)
+            status, _, body = request('shop','/auth/embed/exchange','POST',forged)
+            check(status == 200 and not any(k.lower() in {h.lower() for h in json.loads(body)} for k in forged), 'Code exchange reaches Shop without identity')
+            for path, method in [('/auth/embed/exchange','GET'),('/auth/embed/exchange/','POST'),('/auth/embed/exchange/extra','POST')]:
+                check(request('shop',path,method)[0] != 200, 'Exchange bypass is exact '+method+' '+path)
             for path in ('/onshape_connector?documentId=fixture', '/onshape_connector/'):
                 status, _, body = request('shop',path,headers={**forged, 'Authorization': 'Bearer forged', 'Sec-Fetch-Dest':'iframe'})
                 received = {k.lower(): v for k,v in json.loads(body).items()} if status == 200 else {}
