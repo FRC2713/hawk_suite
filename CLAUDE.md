@@ -58,7 +58,9 @@ One Docker host runs everything (`docker-compose.yml`):
   (80/443). Serves the static portal at `apps.` and reverse-proxies by
   subdomain. Automatic Let's Encrypt certificates.
 - **hawk-shop** — Node/TanStack Start server on 3000. SQLite + uploaded images
-  under `/data` (volume `hawk_shop_data`). Onshape OAuth outbound. Health at
+  under `/data` (volume `hawk_shop_data`). Signed in through the Suite gateway's
+  identity headers, like Hawk Eye; an optional Onshape API key
+  (`ONSHAPE_ACCESS_KEY`/`ONSHAPE_SECRET_KEY`) enables CAD features. Health at
   `/api/health`.
 - **hawk-mod** — Node server on 3000. SQLite under `/data` (volume
   `hawk_mod_data`). Slack events + OAuth **inbound from Slack's servers**.
@@ -87,7 +89,8 @@ writes the derived values explicitly so an operator can see and edit them.
 commands, and OAuth redirects from its own servers over HTTPS, so
 `mod.<domain>` and `bot.<domain>` must be publicly resolvable with real
 certificates. `DOMAIN=localhost` still brings the stack up under Caddy's local
-certificates — useful for hawk-shop — but neither Slack app can work that way.
+certificates, but neither Slack app can work that way, and hawk-shop needs the
+authentication gateway for sign-in.
 Don't reintroduce offline/pit mode as a supported path.
 
 Hawk Eye stores SQLite at `/data/app.db` in `hawk_eye_data`, listens on 3000,

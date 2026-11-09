@@ -178,20 +178,45 @@ scout.__DOMAIN__ {
         respond "Hawk Eye is temporarily unavailable." 503
     }
 }
-# Shop is not gated: its cookies and Onshape login are preserved, and it receives no suite identity.
 (shop-proxy) {
+    # Like Eye: cookies pass through and Shop reads the injected identity headers.
+    # The Location rewrite keeps redirects on HTTPS inside Onshape's iframe.
     reverse_proxy hawk-shop:3000 {
+        header_up -Authorization
         header_up -X-Hawk-Identity
         header_down Location "^http://" "https://"
     }
 }
-# Shop retains its own Onshape authentication, including the embedded view.
-# Its card remains in the authenticated portal; direct access has no suite gate.
+(shop-protected) {
+    authorize with suite
+    import shop-proxy
+}
+# Shop is gated like Eye. Shop verifies the Suite identity on every data route.
 shop.__DOMAIN__ {
-    route {
-        import clear-suite-identity
+  route {
+    import clear-suite-identity
+    @shopHealth {
+        method GET HEAD
+        path /api/health /health
+    }
+    route @shopHealth {
         import shop-proxy
     }
+    # The gateway cookie is SameSite=Lax, so it never reaches Onshape's iframe.
+    # An anonymous embedded request gets only Shop's top-level "Open Hawk Shop"
+    # continuation page; Shop serves nothing else without an identity.
+    @shopIframe {
+        method GET HEAD
+        path /onshape_connector /onshape_connector/
+        header Sec-Fetch-Dest iframe
+    }
+    route @shopIframe {
+        import shop-proxy
+    }
+    route {
+        import shop-protected
+    }
+  }
 }
 (slack-app) {
     @events {

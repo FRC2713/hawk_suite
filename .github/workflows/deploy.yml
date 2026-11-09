@@ -62,10 +62,12 @@ jobs:
           # hawk-mod's lifecycle sync. Optional: unset, hawk-mod runs as before
           # and /hawkmod lifecycle says Google is not configured.
           LIFECYCLE_SHEET_ID: ${{ vars.LIFECYCLE_SHEET_ID }}
-          ONSHAPE_IFRAME_EMBED: ${{ vars.ONSHAPE_IFRAME_EMBED || 'false' }}
+          # hawk-shop's Onshape API key. Optional: unset, CAD features return
+          # 409 and the rest of Shop works. The base URL defaults in Compose.
+          ONSHAPE_BASE_URL: ${{ vars.ONSHAPE_BASE_URL }}
 
-          ONSHAPE_CLIENT_ID: ${{ secrets.ONSHAPE_CLIENT_ID }}
-          ONSHAPE_CLIENT_SECRET: ${{ secrets.ONSHAPE_CLIENT_SECRET }}
+          ONSHAPE_ACCESS_KEY: ${{ secrets.ONSHAPE_ACCESS_KEY }}
+          ONSHAPE_SECRET_KEY: ${{ secrets.ONSHAPE_SECRET_KEY }}
           SLACK_SIGNING_SECRET: ${{ secrets.SLACK_SIGNING_SECRET }}
           SLACK_CLIENT_ID: ${{ secrets.SLACK_CLIENT_ID }}
           SLACK_CLIENT_SECRET: ${{ secrets.SLACK_CLIENT_SECRET }}

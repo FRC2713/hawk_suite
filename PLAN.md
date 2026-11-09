@@ -37,8 +37,8 @@ image; hawk_suite composes them.
   hostname, and no home other than this host.
 - **Offline / pit mode.** It was a goal when QRScout was in scope. hawk-mod
   requires public HTTPS reachability by construction, so the suite is now a
-  public-internet deployment. `DOMAIN=localhost` still works for poking at
-  hawk-shop locally; it is not a supported operating mode.
+  public-internet deployment. `DOMAIN=localhost` still brings the stack up;
+  it is not a supported operating mode.
 - **Kubernetes.** Two containers on one host. If the suite ever gets a hosted
   multi-tenant story, the compose stack is the thing to port — but nothing here
   should be shaped by that possibility today.
@@ -50,7 +50,7 @@ image; hawk_suite composes them.
 
 | App | Image | Port | State | External dependency |
 | --- | --- | --- | --- | --- |
-| [hawk-shop](https://github.com/FRC2713/hawk-shop) | `ghcr.io/frc2713/hawk-shop` | 3000 | SQLite + uploaded images in `/data` | Onshape OAuth + API |
+| [hawk-shop](https://github.com/FRC2713/hawk-shop) | `ghcr.io/frc2713/hawk-shop` | 3000 | SQLite + uploaded images in `/data` | Hawk Suite sign-in; optional Onshape API key |
 | [hawk-mod](https://github.com/FRC2713/hawk-mod) | `ghcr.io/frc2713/hawk-mod` | 3000 | SQLite in `/data` | Slack (events, OAuth) |
 | [hawk-bot](https://github.com/FRC2713/hawk-bot) | `ghcr.io/frc2713/hawk-bot` | 3000 | SQLite in `/data` | Slack (commands, events, OAuth) |
 | [hawk-eye](https://github.com/FRC2713/hawk-eye) | `ghcr.io/frc2713/hawk-eye` | 3000 | SQLite in `/data` | Reviewed release; event/team views and docs require Slack sign-in |
@@ -82,10 +82,10 @@ One Linode, one compose stack:
   from main. See `docs/continuous-deployment.md` — in
   particular its trust model, which is the thing to read before granting anyone
   merge rights here.
-- **Authentication gateway.** A Caddy/caddy-security layer gates Mod, Bot, and
-  Eye's event/team views and docs behind a shared Slack sign-in; Shop keeps its own
-  Onshape login because the gateway's SameSite=Lax cookie breaks the Onshape
-  iframe. See `docs/continuous-deployment.md#authentication-gateway-releases`
+- **Authentication gateway.** A Caddy/caddy-security layer gates Shop, Mod, Bot,
+  and Eye's event/team views and docs behind a shared Slack sign-in. Shop reads
+  the gateway's identity headers and reaches Onshape with a server API key; its
+  Onshape iframe gets only a top-level sign-in continuation. See `docs/continuous-deployment.md#authentication-gateway-releases`
   for the release/recovery contract.
 
 `DOMAIN` is the single switch: every URL any app needs is derived from it
@@ -106,7 +106,7 @@ disagrees.
 
 The suite composes four apps. Hawk Eye exposes event/team views and docs;
 scouting remains unimplemented. Authenticated releases require Slack sign-in
-for Mod, Bot, and Eye. Shop keeps its Onshape login. See
+for Shop, Mod, Bot, and Eye. See
 [docs/hawk-eye.md](docs/hawk-eye.md) and
 [docs/continuous-deployment.md](docs/continuous-deployment.md#authentication-gateway-releases).
 Remaining work:

@@ -13,9 +13,9 @@ and going back to collect them afterwards means editing `.env` by hand.
 ## Before you start
 
 - A domain you control DNS for.
-- **Onshape OAuth app** — https://dev-portal.onshape.com/oauthApps. Redirect
-  URL: `https://shop.<domain>/auth/onshape/callback`. Keep the client ID and
-  secret.
+- **Onshape API key (optional)** — https://dev-portal.onshape.com/keys. Keep the
+  access and secret keys. Without them Shop works, but CAD import and
+  part-number writes return 409. People sign in to Shop through Hawk Suite.
 - **Slack app for hawk-mod** — created from hawk-mod's
   [`docs/slack-app-manifest.yaml`](https://github.com/FRC2713/hawk-mod/blob/main/docs/slack-app-manifest.yaml),
   with every URL in the manifest pointed at `https://mod.<domain>`. Keep the
@@ -93,8 +93,7 @@ every certificate under `nip.io` against one shared rate limit for the entire
 internet. Issuance fails unpredictably and the error looks nothing like the
 cause. `duckdns.org` is on the list, so each name gets its own quota.
 
-Take hawk-shop all the way through an Onshape login on the temporary hostname
-— its redirect URI is one field to change later. **Create the Slack apps once,
+**Create the Slack apps once,
 against the final domain, and don't enroll adults until then.** Neither Slack
 app will start without its credentials, so a temporary-hostname run means
 leaving them blank and accepting two restarting containers; what you are
@@ -170,9 +169,11 @@ and `docker compose up -d`.
 
 ## 5. Finish the app setup
 
-**hawk-shop**: open `https://shop.<domain>` and sign in with Onshape. If the
-OAuth round trip fails, the registered redirect URL and `ONSHAPE_REDIRECT_URI`
-in `.env` disagree — they must match character for character.
+**hawk-shop**: open `https://shop.<domain>` and sign in through Hawk Suite.
+Shop trusts only the authentication gateway's identity headers, so it needs an
+authenticated release (see `docs/continuous-deployment.md`); behind the base
+Caddyfile it serves only its health check. CAD features need
+`ONSHAPE_ACCESS_KEY` and `ONSHAPE_SECRET_KEY`.
 
 **hawk-mod**: a Lead Coach opens `https://mod.<domain>/slack/install`, invites
 the bot to the findings channel, and imports the roster and consents (see
@@ -220,20 +221,16 @@ the end — it costs nothing and keeps the stack reachable while you work.
 
 **2. `.env` on the host.** Changing `DOMAIN` is **not sufficient**. The compose
 file derives the app URLs from `DOMAIN`, but `setup.sh` writes the derived
-values explicitly, and an explicit value in `.env` wins. Update all five:
+values explicitly, and an explicit value in `.env` wins. Update all four:
 
 ```
 DOMAIN=<new-domain>
 APP_URL=https://shop.<new-domain>
-ONSHAPE_REDIRECT_URI=https://shop.<new-domain>/auth/onshape/callback
 PUBLIC_URL=https://mod.<new-domain>
 HAWK_BOT_PUBLIC_URL=https://bot.<new-domain>
 ```
 
-**3. Onshape.** Update the redirect URL on the OAuth app to match
-`ONSHAPE_REDIRECT_URI` exactly.
-
-**4. Slack — hawk-mod's app.** Every URL that carries the hostname, from
+**3. Slack — hawk-mod's app.** Every URL that carries the hostname, from
 `docs/slack-app-manifest.yaml`:
 
 | Where | What |
@@ -243,17 +240,17 @@ HAWK_BOT_PUBLIC_URL=https://bot.<new-domain>
 | Slash Commands | `/hawkmod` request URL |
 | Interactivity & Shortcuts | Request URL (the Resolve/Acknowledge buttons) |
 
-Order matters here: do step 6 before saving the Event Subscriptions URL, or the
+Order matters here: do step 5 before saving the Event Subscriptions URL, or the
 verification challenge fails.
 
-**5. Slack — hawk-bot's app.** The same four fields, pointed at
+**4. Slack — hawk-bot's app.** The same four fields, pointed at
 `https://bot.<new-domain>`, with `/hawkbot` as the slash command. Different app,
 different dashboard; nothing is shared between them.
 
-**6. Restart.** `docker compose up -d` on the host. Caddy requests certificates
+**5. Restart.** `docker compose up -d` on the host. Caddy requests certificates
 for the new hostnames on its own; the old ones stay in its store harmlessly.
 
-**7. Verify.** `curl -s https://mod.<new-domain>/health` and
+**6. Verify.** `curl -s https://mod.<new-domain>/health` and
 `curl -s https://bot.<new-domain>/health`, then `/hawkmod status` in Slack —
 coverage should read the same N/N it did before — and `/hawkbot status`.
 

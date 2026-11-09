@@ -6,7 +6,7 @@ from urllib.parse import urlsplit
 
 
 def verify(domain):
-    for app in ('mod', 'bot', 'scout'):
+    for app in ('shop', 'mod', 'bot', 'scout'):
         for headers in ({}, {'Cookie': 'AUTHP_ACCESS_TOKEN=invalid',
                              'X-Hawk-Identity': 'admin'}):
             connection = http.client.HTTPSConnection(f'{app}.{domain}', timeout=15)
