@@ -257,8 +257,9 @@ to GHCR does not deploy it; pinning its digest and running Deploy are separate s
    this, and never paste any of these into an issue, chat, or command line.
 5. Merge the pinned release, then run **Deploy** from main.
 6. In a fresh browser session, confirm Mod, Bot, and Eye redirect anonymous
-   users to the portal; sign in with Slack and confirm each app's own login
-   still works; sign out of the gateway and confirm Mod/Bot/Eye are gated
+   users to the portal; sign in with Slack and confirm you land back on the
+   app you started from, not the portal, and that each app's own login still
+   works; sign out of the gateway and confirm Mod/Bot/Eye are gated
    again. Confirm Shop also redirects to the portal, and that its Onshape
    panel offers "Open Hawk Shop" and works after signing in.
 
