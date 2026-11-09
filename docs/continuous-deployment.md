@@ -158,8 +158,9 @@ Without proxy trust enabled, Mod and Bot retain local Slack sign-in and Eye
 retains reader-token access.
 
 Sign-in is at `https://apps.<domain>/auth/`. The session cookie is scoped to
-the bare domain, Secure, HttpOnly, SameSite=Lax, with a 15-minute access
-token. Client-supplied `X-Hawk-Identity` is stripped before every app proxy.
+the bare domain, Secure, HttpOnly, SameSite=Lax, with a 7-day access
+token. This is a fixed lifetime from sign-in; automatic refresh remains disabled.
+Client-supplied `X-Hawk-Identity` is stripped before every app proxy.
 Mod, Bot, and Eye receive the browser's cookies unchanged, including the signed
 `AUTHP_ACCESS_TOKEN` session. The gateway verifies the session and
 injects the identity headers documented below for the app adapters. Eye's `Authorization` header is still stripped.

@@ -17,7 +17,7 @@
 		}
 		authentication portal fixture {
 			enable identity provider slack_fixture
-			crypto default token lifetime 900
+			crypto default token lifetime 604800
 			crypto key suite-test sign from file /private/suite.pem
 			crypto key suite-test verify from file /public/suite.pem
 			cookie insecure on

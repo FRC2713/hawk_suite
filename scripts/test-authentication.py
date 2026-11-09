@@ -181,9 +181,9 @@ def main():
         token, claims = suite_claims(jar)
         check("workspace-qualified subject and explicit Slack IDs", claims.get("sub") == "slack:TAPPROVED:UFIXTURE"
               and claims.get("slack_team_id") == "TAPPROVED" and claims.get("slack_user_id") == "UFIXTURE")
-        check("suite issuer audience roles and 15-minute lifetime", claims.get("iss") == "https://apps.suite.test/"
+        check("suite issuer audience roles and 7-day lifetime", claims.get("iss") == "https://apps.suite.test/"
               and claims.get("aud") == "hawk-suite" and "suite/member" in claims.get("roles", [])
-              and "suite/admin" not in claims.get("roles", []) and claims["exp"] - claims["iat"] == 900
+              and "suite/admin" not in claims.get("roles", []) and claims["exp"] - claims["iat"] == 604800
               and type(claims["roles"]) is list and all(type(role) is str for role in claims["roles"])
               and all(type(claims.get(field)) is int for field in ("exp", "iat", "nbf"))
               and claims["nbf"] == claims["iat"] - 60 and bool(claims.get("jti"))
