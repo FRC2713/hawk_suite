@@ -138,12 +138,27 @@ endpoints remain outside the proxy allowlist.
 ## Authentication gateway releases
 
 Caddy gates Shop, Mod, Bot, and Eye's event/team views and docs behind a shared
-Slack sign-in. Shop has no login of its own. The gateway's SameSite=Lax cookie
-does not reach Onshape's iframe, so an anonymous embedded GET of
-`/onshape_connector` reaches only Shop's top-level "Open Hawk Shop" continuation
-page; everything else in Shop needs the gateway session. No suite membership grants any
-app's admin rights; each app keeps its own permissions. Signing out of the
-gateway does not sign out of individual apps.
+Slack sign-in. Shop connects an Onshape iframe through a popup authenticated
+with the ordinary Suite session. Its proof-bound one-use exchange copies only
+the signed access token into a host-only partitioned Shop cookie, valid for up
+to eight hours and bounded by token expiry. The shared SameSite=Lax cookie is
+unchanged. Caddy validates the embedded token on every request before injecting
+identity, using the same signing key, issuer, audience and membership role.
+Embedded cookies cannot authorize the popup that issues new codes.
+
+Anonymous embedded GET/HEAD requests to `/onshape_connector` expose only the
+connection screen. Static assets and the exact POST `/auth/embed/exchange` also
+reach Shop without gateway identity; Shop checks Origin, JSON and the one-use
+code's proof before setting the cookie. No data API is exempt. API auth failures
+return 401/403. Expired iframe navigation clears identity and returns the
+connection screen. Shop sign-out clears the current partition's copy; sign-out
+elsewhere does not revoke copied access tokens before expiry. No Suite
+membership grants app administrator rights.
+
+Deploy the corresponding Shop image with these gateway changes. Verify popup
+permissions, Slack return navigation, cookie partitioning and a part release
+inside real Onshape after deployment. The disposable routing and browser tests
+cover the local contract, not third-party production settings.
 
 Hawk Shop, Hawk Eye, Hawk Mod, and Hawk Bot consume Caddy's trusted identity headers when
 `HAWK_SUITE_TRUST_PROXY=true`. The authentication overlay supplies that flag,
@@ -199,7 +214,7 @@ no separate login and relies on these headers. No new Slack scopes are needed.
 | --- | --- | --- |
 | `apps` | Native sign-in/callback routes, public branding | Portal requires login; unknown paths 404 |
 | `mod`, `bot` | POST `/slack/events`; GET `/slack/oauth_redirect`, `/auth/slack/callback`; GET/HEAD `/health` | Gateway membership required, then the existing app login/permissions |
-| `shop` | GET/HEAD `/api/health` and `/health`; GET/HEAD `/onshape_connector` with `Sec-Fetch-Dest: iframe`, which Shop answers only with a sign-in continuation | Gateway membership required; Shop verifies the identity headers on every data route |
+| `shop` | GET/HEAD `/api/health` and `/health`; GET/HEAD `/onshape_connector` with `Sec-Fetch-Dest: iframe`, static assets, and exact POST `/auth/embed/exchange`, which Shop protects with origin and one-use proof checks | Gateway membership required; Shop verifies the identity headers on every data route |
 | `scout` | GET/HEAD `/health`, partner pick list pages and static app assets; exact partner join/leave/chat POSTs, authorized by Eye's share code | Event/team views, scouting, the host pick list and its three edit actions, and docs require gateway membership; other routes 503. See [the exact allowlist](hawk-eye.md). |
 
 The Deploy plan requires an `authentication` entry in the release manifest;
