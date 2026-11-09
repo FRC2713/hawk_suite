@@ -226,13 +226,11 @@ class ComposeCredentialTests(unittest.TestCase):
             base = json.loads(subprocess.check_output(command+['config','--format','json']))
             overlay = json.loads(subprocess.check_output(command+['-f',str(ROOT/'config/authentication/compose.yaml'),
                                                                  'config','--format','json']))
-        # Eye, Mod and Bot consume the isolated gateway's identity headers; Shop is
-        # not behind the gateway and must be untouched.
-        gated = ('hawk-eye', 'hawk-mod', 'hawk-bot')
+        # Every app consumes the isolated gateway's identity headers.
+        self.assertEqual(set(APPS), {'hawk-shop', 'hawk-eye', 'hawk-mod', 'hawk-bot'})
         for app in APPS:
-            if app not in gated:
-                self.assertEqual(base['services'][app], overlay['services'][app])
-        for app in gated:
+            self.assertNotIn('HAWK_SUITE_TRUST_PROXY', base['services'][app]['environment'], msg=app)
+        for app in APPS:
             app_base, gated_app = base['services'][app], overlay['services'][app]
             self.assertEqual({**app_base['environment'], 'HAWK_SUITE_ISSUER': 'https://apps.ci.example.org/',
                               'HAWK_SUITE_TRUST_PROXY': 'true', 'HAWK_SUITE_TEAM_ID': 'TAPPROVED'}, gated_app['environment'],
@@ -254,12 +252,12 @@ class ComposeCredentialTests(unittest.TestCase):
             self.skipTest('Docker CLI required for Compose interpolation')
         for value in ["a$B \\ hi'yes", 'trailing\\', 'double"quotes', '$$cash', 'unicode:雪']:
             with self.subTest(value=value), tempfile.NamedTemporaryFile(mode='w') as file:
-                file.write(deploy.env_text(dict(DOMAIN='ci.example.org', ONSHAPE_CLIENT_SECRET=value, TOKEN_ENCRYPTION_KEY=value)))
+                file.write(deploy.env_text(dict(DOMAIN='ci.example.org', ONSHAPE_SECRET_KEY=value, TOKEN_ENCRYPTION_KEY=value)))
                 file.flush()
                 resolved = json.loads(subprocess.check_output(['docker', 'compose', '--project-directory', str(ROOT), '--env-file', file.name,
                                                               '-f', str(ROOT / 'docker-compose.yml'), 'config', '--format', 'json'],
                                                              env={'PATH': os.environ['PATH']}))
-                actual = resolved['services']['hawk-shop']['environment']['ONSHAPE_CLIENT_SECRET'].replace('$$', '$')
+                actual = resolved['services']['hawk-shop']['environment']['ONSHAPE_SECRET_KEY'].replace('$$', '$')
                 self.assertEqual(value, actual)
                 self.assertEqual(value, deploy.old_token(Path(file.name)))
 

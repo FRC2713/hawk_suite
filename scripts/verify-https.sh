@@ -9,8 +9,8 @@ check() { # check <url> <what>
     # curl already writes 000 via -w when it cannot connect; the ||
     # replaces it rather than appending, so the message stays legible.
     code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 "$url") || code=000
-    # 2xx and 3xx both count: hawk-shop redirects to Onshape when
-    # nobody is signed in, which is a working app.
+    # 2xx and 3xx both count: gated hosts redirect to the Hawk Suite
+    # sign-in when nobody is signed in, which is a working app.
     if [[ $code =~ ^[23] ]]; then
       echo "  ok   $what ($code)"
       return 0
@@ -23,7 +23,7 @@ check() { # check <url> <what>
 
 rc=0
 check "https://apps.${DOMAIN}"       "portal"    || rc=1
-check "https://shop.${DOMAIN}"       "hawk-shop" || rc=1
+check "https://shop.${DOMAIN}/api/health" "hawk-shop" || rc=1
 check "https://mod.${DOMAIN}/health" "hawk-mod"  || rc=1
 check "https://bot.${DOMAIN}/health" "hawk-bot"  || rc=1
 check "https://scout.${DOMAIN}/health" "hawk-eye" || rc=1

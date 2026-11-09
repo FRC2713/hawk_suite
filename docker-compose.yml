@@ -36,19 +36,18 @@ services:
     image: ${HAWK_SHOP_IMAGE:-ghcr.io/frc2713/hawk-shop:${HAWK_SHOP_TAG:-latest}}
     restart: unless-stopped
     environment:
-      # --- Onshape OAuth (required) ---------------------------------------
-      ONSHAPE_CLIENT_ID: ${ONSHAPE_CLIENT_ID:-}
-      ONSHAPE_CLIENT_SECRET: ${ONSHAPE_CLIENT_SECRET:-}
-      # Must match the redirect URL registered on the Onshape app exactly.
-      ONSHAPE_REDIRECT_URI: ${ONSHAPE_REDIRECT_URI:-https://shop.${DOMAIN}/auth/onshape/callback}
-      ONSHAPE_SCOPE: ${ONSHAPE_SCOPE:-OAuth2Read OAuth2ReadPII OAuth2Write}
+      # --- Onshape API key (optional) ------------------------------------
+      # A server-side key pair from https://dev-portal.onshape.com/keys.
+      # Unset, CAD import and part-number writes return 409 and the rest of
+      # Shop works. Sign-in is Hawk Suite's; the authentication overlay
+      # supplies HAWK_SUITE_* only behind the gateway that sets those headers.
+      ONSHAPE_ACCESS_KEY: ${ONSHAPE_ACCESS_KEY:-}
+      ONSHAPE_SECRET_KEY: ${ONSHAPE_SECRET_KEY:-}
+      ONSHAPE_BASE_URL: ${ONSHAPE_BASE_URL:-https://cad.onshape.com}
 
       # --- Deployment ------------------------------------------------------
-      # Public origin, used to decide whether auth cookies get the Secure flag.
+      # Public origin; Shop accepts writes only from this origin.
       APP_URL: ${APP_URL:-https://shop.${DOMAIN}}
-      # true only when embedding in Onshape's iframe over HTTPS — it switches
-      # the auth cookies to SameSite=None.
-      ONSHAPE_IFRAME_EMBED: ${ONSHAPE_IFRAME_EMBED:-false}
 
       # --- Storage ---------------------------------------------------------
       # SQLite database + uploaded images, both under here.

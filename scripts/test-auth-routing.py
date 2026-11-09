@@ -110,7 +110,8 @@ HTTPServer(('0.0.0.0',3000), Handler).serve_forever()
             docker('exec',name+'-gateway','caddy','validate','--config','/etc/hawk-auth/Caddyfile.maintenance','--adapter','caddyfile')
             check(True,'maintenance configuration validates')
             valid = token()
-            for host in ('mod','bot','scout'):
+            signed = {'Cookie':'AUTHP_ACCESS_TOKEN='+valid}
+            for host in ('mod','bot','scout','shop'):
                 for value in (None, 'invalid', token(exp=int(time.time())-120), token(aud='wrong'), token(roles=['admin'])):
                     status, location, body = request(host, headers={} if value is None else {'Cookie':'AUTHP_ACCESS_TOKEN='+value})
                     check(status in (302,303,307,401,403), host+' rejects missing/invalid claims')
@@ -125,7 +126,7 @@ HTTPServer(('0.0.0.0',3000), Handler).serve_forever()
                         'X-Hawk-Slack-Team': 'TAPPROVED', 'X-Hawk-Slack-User': 'UTEST',
                         'X-Token-User-Roles': 'suite/member'}
             forged = {key: 'forged' for key in [*identity, 'X-Token-User-Name', 'X-Token-User-Email']}
-            for host in ('mod', 'bot', 'scout'):
+            for host in ('mod', 'bot', 'scout', 'shop'):
                 check(request(host, headers=forged)[0] != 200, host+' rejects forged identity without session')
                 status, _, body = request(host, headers={**forged, 'Cookie': 'AUTHP_ACCESS_TOKEN='+valid})
                 received = {k.lower(): v for k, v in json.loads(body).items()}
@@ -140,7 +141,7 @@ HTTPServer(('0.0.0.0',3000), Handler).serve_forever()
             received = {k.lower(): v for k,v in json.loads(body).items()}
             check(status == 200 and received.get('x-hawk-slack-user') == 'UTEST'
                   and 'x-token-user-email' not in received, 'duplicate mixed-case headers cannot survive')
-            for host, path in [('shop','/'), ('scout','/health'), ('bot','/health'), ('mod','/slack/oauth_redirect')]:
+            for host, path in [('shop','/api/health'), ('shop','/health'), ('scout','/health'), ('bot','/health'), ('mod','/slack/oauth_redirect')]:
                 status, _, body = request(host, path, headers=forged)
                 received = {k.lower(): v for k,v in json.loads(body).items()}
                 check(status == 200 and not any(k.lower() in received for k in forged), host+' clears identity on bypass')
@@ -149,15 +150,26 @@ HTTPServer(('0.0.0.0',3000), Handler).serve_forever()
                     check(request(host,path,method)[0] == 200,host+' forwards exact '+method+' '+path)
                 for path, method in [('/slack/events','GET'),('/slack/events/extra','POST'),('/slack/install','GET'),('/auth/slack/callback','POST')]:
                     check(request(host,path,method)[0] != 200,host+' protects '+method+' '+path)
-            check(request('shop','/auth/onshape/callback')[0] == 200,'Onshape GET callback reaches app')
-            for path in ('/', '/onshape_connector', '/auth/onshape', '/api/health'):
-                check(request('shop',path)[0] == 200,'Shop delegates '+path+' to existing app authentication')
-            status, _, body = request('shop', headers={'Cookie':'app_session=preserved', 'X-Hawk-Identity':'forged'})
-            check(status == 200 and 'app_session=preserved' in json.loads(body).get('Cookie',''), 'Shop app cookie preserved without gateway login')
-            check('X-Hawk-Identity' not in json.loads(body),'Shop strips forged identity')
+            for path in ('/', '/onshape_connector', '/signin', '/api/kanban/cards', '/api/files/x.png', '/_astro/app.js'):
+                check(request('shop',path)[0] in (302,303,307,401,403), 'Shop gates anonymous '+path)
+                check(request('shop',path,headers=signed)[0] == 200, 'Shop forwards signed '+path)
+            check(request('shop','/api/kanban/cards','POST')[0] in (302,303,307,401,403), 'Shop gates anonymous POST')
+            for path in ('/api/health', '/health'):
+                for method in ('GET', 'HEAD'):
+                    check(request('shop',path,method)[0] == 200, 'Shop keeps '+method+' '+path+' public')
+                check(request('shop',path,'POST')[0] in (302,303,307,401,403), 'Shop gates POST '+path)
+            for path in ('/onshape_connector?documentId=fixture', '/onshape_connector/'):
+                status, _, body = request('shop',path,headers={**forged, 'Authorization': 'Bearer forged', 'Sec-Fetch-Dest':'iframe'})
+                received = {k.lower(): v for k,v in json.loads(body).items()} if status == 200 else {}
+                check(status == 200 and 'authorization' not in received and not any(k.lower() in received for k in forged),
+                      'Shop iframe entry clears identity and reaches only the continuation '+path)
+            for path, method in [('/api/kanban/cards','GET'), ('/', 'GET'), ('/onshape_connector/extra','GET'), ('/onshape_connector','POST')]:
+                check(request('shop',path,method,{'Sec-Fetch-Dest':'iframe'})[0] in (302,303,307,401,403),
+                      'Shop iframe cannot bypass authorization '+method+' '+path)
+            status, _, body = request('shop', headers={**signed, 'X-Hawk-Identity':'forged'})
+            check(status == 200 and 'X-Hawk-Identity' not in json.loads(body), 'Shop strips forged identity')
             check('https://shop.__DOMAIN__/' in (ROOT/'config/authentication/portal.template').read_text(), 'Shop card retained in native authenticated portal')
             check(request('scout','/api/write','POST',{'Cookie':'AUTHP_ACCESS_TOKEN='+valid})[0] == 503,'Eye writes remain unavailable')
-            signed = {'Cookie':'AUTHP_ACCESS_TOKEN='+valid}
             for path in ('/events/2026casj/picklist/', '/events/2026casj/picklist.json?since=3'):
                 check(request('scout',path,headers=signed)[0] == 200,'Eye forwards signed GET '+path)
                 check(request('scout',path)[0] in (302,303,307,401,403),'Eye gates anonymous GET '+path)

@@ -114,9 +114,10 @@ def backup(state, backup_id, key, project="hawk-suite"):
                 raise ValueError('ambiguous existing service: ' + app)
             cid = ids[0]
             target = f'/data/.hawk-backup-{backup_id}.db'
-            module = './.output/server/node_modules/better-sqlite3' if app == 'hawk-shop' else 'better-sqlite3'
+            # Shop before its Astro release bundled the driver under .output.
+            module = './.output/server/node_modules/better-sqlite3,better-sqlite3' if app == 'hawk-shop' else 'better-sqlite3'
             # Open read-only: never initialize migrations in the old application.
-            script = "const D=require(process.argv[1]);const d=new D('/data/'+process.argv[2]+'.db',{readonly:true,fileMustExist:true});d.backup(process.argv[3]).then(()=>d.close()).catch(()=>process.exit(1));"
+            script = "let D;for(const m of process.argv[1].split(',')){try{D=require(m);break}catch{}}const d=new D('/data/'+process.argv[2]+'.db',{readonly:true,fileMustExist:true});d.backup(process.argv[3]).then(()=>d.close()).catch(()=>process.exit(1));"
             run(['docker', 'exec', cid, 'node', '-e', script, module, 'app' if app == 'hawk-eye' else app, target], stdout=subprocess.DEVNULL)
             try:
                 run(['docker', 'cp', cid + ':' + target, str(scratch / (app + '.db'))], stdout=subprocess.DEVNULL)

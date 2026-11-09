@@ -64,8 +64,8 @@ never served, so it can keep pointing at the team website.
 hawk-mod and hawk-bot receive Slack events, slash commands, and OAuth redirects
 from Slack's own servers, so `mod.<domain>` and `bot.<domain>` must be publicly
 resolvable and serve real HTTPS. `DOMAIN=localhost` still brings the stack up
-with Caddy's local certificates, which is enough to click around hawk-shop, but
-neither Slack app can function that way.
+with Caddy's local certificates, but neither Slack app can function that way,
+and hawk-shop signs people in only through the authentication gateway.
 
 ## Updating
 

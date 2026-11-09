@@ -56,7 +56,7 @@ Retain existing credentials. The complete production secret names are:
 | `DEPLOY_SSH_KEY` | Host provisioning output, PEM or single-line base64 |
 | `DEPLOY_KNOWN_HOSTS` | Verified host public key entry |
 | `DEPLOY_HOST`, `DEPLOY_USER` | Server address and `deploy` |
-| `ONSHAPE_CLIENT_ID`, `ONSHAPE_CLIENT_SECRET` | Onshape OAuth application |
+| `ONSHAPE_ACCESS_KEY`, `ONSHAPE_SECRET_KEY` | Optional hawk-shop Onshape API key; without it CAD features return 409 |
 | `SLACK_SIGNING_SECRET`, `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`, `SLACK_STATE_SECRET` | hawk-mod's Slack application |
 | `TOKEN_ENCRYPTION_KEY` | Existing hawk-mod encryption key; do not regenerate |
 | `ALERT_CHANNEL_ID` | hawk-mod findings channel ID |
@@ -66,7 +66,7 @@ Retain existing credentials. The complete production secret names are:
 | `HAWK_BOT_GOOGLE_SERVICE_ACCOUNT_KEY_BASE64` | Required hawk-bot Calendar service account key |
 | `BACKUP_ENCRYPTION_KEY` | Separate backup key, minimum 32 characters |
 
-Variables are `DOMAIN`, `LOG_MODE`, `TZ`, `MANAGED_USERGROUPS`, `REPORT_TIME`, `LIFECYCLE_SHEET_ID` and `ONSHAPE_IFRAME_EMBED`. Defaults are defined in the workflow. `REPORT_TIME` is an HH:MM seed, not cron; the saved `/hawkmod config` value wins. `MANAGED_USERGROUPS` is the administrator-editable group allowlist. Student and adult roles come from the lifecycle sheet. The old `STUDENT_USERGROUP`, `ADULT_USERGROUP`, `DIGEST_CRON` and `QUARTERLY_CRON` knobs are retired.
+Variables are `DOMAIN`, `LOG_MODE`, `TZ`, `MANAGED_USERGROUPS`, `REPORT_TIME`, `LIFECYCLE_SHEET_ID` and `ONSHAPE_BASE_URL` (optional, default `https://cad.onshape.com`). Defaults are defined in the workflow. `REPORT_TIME` is an HH:MM seed, not cron; the saved `/hawkmod config` value wins. `MANAGED_USERGROUPS` is the administrator-editable group allowlist. Student and adult roles come from the lifecycle sheet. The old `STUDENT_USERGROUP`, `ADULT_USERGROUP`, `DIGEST_CRON` and `QUARTERLY_CRON` knobs are retired.
 
 Private GHCR images are pulled using the approved workflow job's short-lived
 `GITHUB_TOKEN`, limited to Packages read. The transport sends it through SSH
@@ -136,15 +136,15 @@ endpoints remain outside the proxy allowlist.
 
 ## Authentication gateway releases
 
-Caddy gates Mod, Bot, and Eye's event/team views and docs behind a shared Slack sign-in.
-Shop keeps its own Onshape login and is not behind the gateway: the gateway's
-SameSite=Lax cookie would break the Onshape iframe, so excluding Shop preserves
-its existing direct and embedded access. Its card remains in the authenticated
-portal. No suite membership grants any
+Caddy gates Shop, Mod, Bot, and Eye's event/team views and docs behind a shared
+Slack sign-in. Shop has no login of its own. The gateway's SameSite=Lax cookie
+does not reach Onshape's iframe, so an anonymous embedded GET of
+`/onshape_connector` reaches only Shop's top-level "Open Hawk Shop" continuation
+page; everything else in Shop needs the gateway session. No suite membership grants any
 app's admin rights; each app keeps its own permissions. Signing out of the
 gateway does not sign out of individual apps.
 
-Hawk Eye, Hawk Mod, and Hawk Bot consume Caddy's trusted identity headers when
+Hawk Shop, Hawk Eye, Hawk Mod, and Hawk Bot consume Caddy's trusted identity headers when
 `HAWK_SUITE_TRUST_PROXY=true`. The authentication overlay supplies that flag,
 the gateway's workspace as `HAWK_SUITE_TEAM_ID`, and `HAWK_SUITE_ISSUER` for
 portal/logout links. Every adapter requires matching subject, team and user IDs,
@@ -153,7 +153,8 @@ the browser's gateway cookie themselves. Public exceptions receive no identity.
 
 Mod and Bot still check their installed workspace and existing administrator
 permissions on every config request. Eye still grants only browser reader
-permissions and keeps REST/MCP authentication separate. Shop keeps Onshape login.
+permissions and keeps REST/MCP authentication separate. Shop reaches Onshape
+with a server API key, not per-user OAuth.
 Without proxy trust enabled, Mod and Bot retain local Slack sign-in and Eye
 retains reader-token access.
 
@@ -161,9 +162,9 @@ Sign-in is at `https://apps.<domain>/auth/`. The session cookie is scoped to
 the bare domain, Secure, HttpOnly, SameSite=Lax, with a 7-day access
 token. This is a fixed lifetime from sign-in; automatic refresh remains disabled.
 Client-supplied `X-Hawk-Identity` is stripped before every app proxy.
-Mod, Bot, and Eye receive the browser's cookies unchanged, including the signed
+Shop, Mod, Bot, and Eye receive the browser's cookies unchanged, including the signed
 `AUTHP_ACCESS_TOKEN` session. The gateway verifies the session and
-injects the identity headers documented below for the app adapters. Eye's `Authorization` header is still stripped.
+injects the identity headers documented below for the app adapters. Eye's and Shop's `Authorization` headers are still stripped.
 
 ### Downstream identity contract
 
@@ -187,17 +188,17 @@ expected workspace, matching subject/user IDs, and `suite/member`. Display names
 and emails are not permission grants; escape them when rendering. Gateway roles
 are not Slack user-group memberships.
 
-Shop and public exceptions receive none of these identity headers, even if a
+Public exceptions receive none of these identity headers, even if a
 browser sends a suite cookie. Legacy `X-Hawk-Identity` is always removed.
-Application cookies, OAuth flows, permissions, and image pins are unchanged;
-this release does not remove existing app logins. No new Slack scopes are needed.
+Mod, Bot, and Eye keep their own cookies, OAuth flows and permissions. Shop has
+no separate login and relies on these headers. No new Slack scopes are needed.
 
 
 | Host | Public exceptions | Everything else |
 | --- | --- | --- |
 | `apps` | Native sign-in/callback routes, public branding | Portal requires login; unknown paths 404 |
 | `mod`, `bot` | POST `/slack/events`; GET `/slack/oauth_redirect`, `/auth/slack/callback`; GET/HEAD `/health` | Gateway membership required, then the existing app login/permissions |
-| `shop` | Entire host bypasses the suite login gate | Existing Onshape login and app permissions |
+| `shop` | GET/HEAD `/api/health` and `/health`; GET/HEAD `/onshape_connector` with `Sec-Fetch-Dest: iframe`, which Shop answers only with a sign-in continuation | Gateway membership required; Shop verifies the identity headers on every data route |
 | `scout` | GET/HEAD `/health`, partner pick list pages and static app assets; exact partner join/leave/chat POSTs, authorized by Eye's share code | Event/team views, scouting, the host pick list and its three edit actions, and docs require gateway membership; other routes 503. See [the exact allowlist](hawk-eye.md). |
 
 The Deploy plan requires an `authentication` entry in the release manifest;
@@ -242,7 +243,8 @@ to GHCR does not deploy it; pinning its digest and running Deploy are separate s
 6. In a fresh browser session, confirm Mod, Bot, and Eye redirect anonymous
    users to the portal; sign in with Slack and confirm each app's own login
    still works; sign out of the gateway and confirm Mod/Bot/Eye are gated
-   again. Confirm Shop's direct and embedded Onshape flows are unaffected.
+   again. Confirm Shop also redirects to the portal, and that its Onshape
+   panel offers "Open Hawk Shop" and works after signing in.
 
 ### Private runtime configuration and recovery
 

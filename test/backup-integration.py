@@ -25,7 +25,9 @@ fixture = dict(SLACK_SIGNING_SECRET='fixture', SLACK_CLIENT_ID='fixture', SLACK_
                SLACK_STATE_SECRET='fixture-state-secret', PUBLIC_URL='https://fixture.example.org',
                TOKEN_ENCRYPTION_KEY='AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
                GOOGLE_SERVICE_ACCOUNT_KEY_BASE64='fixture', ONSHAPE_CLIENT_ID='fixture', ONSHAPE_CLIENT_SECRET='fixture',
-               APP_URL='https://fixture.example.org', ONSHAPE_REDIRECT_URI='https://fixture.example.org/auth/onshape/callback')
+               APP_URL='https://fixture.example.org', ONSHAPE_REDIRECT_URI='https://fixture.example.org/auth/onshape/callback',
+               # Shop from its Astro release on reads Suite identity and an optional API key.
+               HAWK_SUITE_TRUST_PROXY='true', HAWK_SUITE_TEAM_ID='TFIXTURE', HAWK_SUITE_ISSUER='https://fixture.example.org/')
 try:
     for app in APPS:
         ref = os.environ.get(app.upper().replace('-', '_') + '_TEST_IMAGE') or image(app, release['apps'][app])

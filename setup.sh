@@ -50,12 +50,11 @@ require DOMAIN "Domain (e.g. team2713.org)"
 
 echo
 echo "── hawk-shop ────────────────────────────────────────────────────"
-echo "Needs an Onshape OAuth app (https://dev-portal.onshape.com/oauthApps)"
-echo "with this redirect URL registered:"
-echo "  https://shop.${DOMAIN}/auth/onshape/callback"
+echo "Sign-in is through Hawk Suite. CAD features use an Onshape API key"
+echo "(https://dev-portal.onshape.com/keys); without one, the rest of Shop works."
 echo "Leave blank to fill in .env later."
-prompt ONSHAPE_CLIENT_ID "Onshape client ID" ""
-prompt ONSHAPE_CLIENT_SECRET "Onshape client secret" ""
+prompt ONSHAPE_ACCESS_KEY "Onshape access key" ""
+prompt ONSHAPE_SECRET_KEY "Onshape secret key" ""
 
 echo
 echo "── hawk-mod ─────────────────────────────────────────────────────"
@@ -119,12 +118,9 @@ HAWK_EYE_MATCH13_API_KEY=${HAWK_EYE_MATCH13_API_KEY}
 HAWK_EYE_MATCH13_ACCOUNT=default
 
 # ── hawk-shop ────────────────────────────────────────────────────────
-ONSHAPE_CLIENT_ID=${ONSHAPE_CLIENT_ID}
-ONSHAPE_CLIENT_SECRET=${ONSHAPE_CLIENT_SECRET}
-ONSHAPE_REDIRECT_URI=https://shop.${DOMAIN}/auth/onshape/callback
-ONSHAPE_SCOPE=OAuth2Read OAuth2ReadPII OAuth2Write
+ONSHAPE_ACCESS_KEY=${ONSHAPE_ACCESS_KEY}
+ONSHAPE_SECRET_KEY=${ONSHAPE_SECRET_KEY}
 APP_URL=https://shop.${DOMAIN}
-ONSHAPE_IFRAME_EMBED=false
 
 # ── hawk-mod ─────────────────────────────────────────────────────────
 SLACK_SIGNING_SECRET=${SLACK_SIGNING_SECRET}
