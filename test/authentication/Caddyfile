@@ -17,6 +17,7 @@
 		}
 		authentication portal fixture {
 			enable identity provider slack_fixture
+			trust login redirect uri domain exact shop.suite.test path prefix /
 			crypto default token lifetime 604800
 			crypto key suite-test sign from file /private/suite.pem
 			crypto key suite-test verify from file /public/suite.pem

@@ -23,6 +23,11 @@
 				template portal /etc/hawk-auth/portal.template
 			}
 			enable identity provider slack_suite
+			trust login redirect uri domain exact apps.__DOMAIN__ path prefix /
+			trust login redirect uri domain exact shop.__DOMAIN__ path prefix /
+			trust login redirect uri domain exact scout.__DOMAIN__ path prefix /
+			trust login redirect uri domain exact mod.__DOMAIN__ path prefix /
+			trust login redirect uri domain exact bot.__DOMAIN__ path prefix /
 			crypto default token lifetime 604800
 			crypto key suite-production sign from file /etc/hawk-auth/private.pem
 			crypto key suite-production verify from file /etc/hawk-auth/public.pem

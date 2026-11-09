@@ -141,8 +141,11 @@ def main():
 
         check("anonymous request never reaches backend", denied(client))
 
-        def login(scenario=None, bad_state=False):
+        def login(scenario=None, bad_state=False, return_to=None, redirects=None):
             login_client, jar = browser()
+            if return_to:
+                status, _, _ = request(login_client, gateway_url + "/auth/login?" + urllib.parse.urlencode({"redirect_url": return_to}))
+                assert status == 200
             status, headers, _ = request(login_client, gateway_url + "/auth/oauth2/slack")
             if status not in (302, 303):
                 raise RuntimeError("provider redirect missing")
@@ -162,11 +165,21 @@ def main():
                 if status not in (301, 302, 303, 307, 308) or not headers.get("Location"):
                     break
                 target = urllib.parse.urljoin(callback, headers["Location"])
+                if redirects is not None:
+                    redirects.append(target)
                 if urllib.parse.urlsplit(target).netloc != urllib.parse.urlsplit(gateway_url).netloc:
                     break
                 status, headers, _ = request(login_client, target)
             return login_client, jar
 
+        popup_destination = "https://shop.suite.test/auth/embed/authorize?challenge=" + "a" * 43
+        returned = []
+        login(return_to=popup_destination, redirects=returned)
+        check("sign-in returns to the exact Shop popup callback", popup_destination in returned)
+        foreign = []
+        login(return_to="https://evil.test/auth/embed/authorize", redirects=foreign)
+        check("sign-in ignores an untrusted return host",
+              not any(urllib.parse.urlsplit(url).netloc == "evil.test" for url in foreign))
         member, jar = login()
         check("synthetic approved workspace reaches echo", echo(member))
         def suite_claims(cookies):
