@@ -23,7 +23,7 @@
 				template portal /etc/hawk-auth/portal.template
 			}
 			enable identity provider slack_suite
-			crypto default token lifetime 900
+			crypto default token lifetime 604800
 			crypto key suite-production sign from file /etc/hawk-auth/private.pem
 			crypto key suite-production verify from file /etc/hawk-auth/public.pem
 			cookie insecure off
