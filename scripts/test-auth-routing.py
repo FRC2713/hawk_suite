@@ -122,6 +122,18 @@ HTTPServer(('0.0.0.0',3000), Handler).serve_forever()
                 check('X-Hawk-Identity' not in parsed,host+' strips forged identity')
                 check('app_session=preserved' in parsed.get('Cookie',''),host+' preserves app login cookie')
                 check('AUTHP_ACCESS_TOKEN='+valid in parsed.get('Cookie',''),host+' forwards signed suite session')
+            status, _, body = request('shop', '/api/onshape/webhook?secret=fixture', 'POST',
+                                      {'X-Hawk-Slack-Team': 'forged', 'X-Hawk-Slack-User': 'forged',
+                                       'X-Token-Subject': 'forged', 'X-Token-User-Roles': 'suite/member'})
+            check(status == 200, 'Shop forwards anonymous Onshape callback to app secret verification')
+            forwarded = {key.lower(): value for key, value in json.loads(body).items()}
+            check(not any(key in forwarded for key in ('x-hawk-slack-team', 'x-hawk-slack-user',
+                                                       'x-token-subject', 'x-token-user-roles')),
+                  'Shop callback strips forged Suite identity')
+            for method, path in (('GET', '/api/onshape/webhook'), ('POST', '/api/onshape/webhook/'),
+                                 ('POST', '/api/onshape/webhook/extra')):
+                check(request('shop', path, method)[0] in (302,303,307,401,403),
+                      'Shop gates non-callback request '+method+' '+path)
             identity = {'X-Token-Subject': 'slack:TAPPROVED:UTEST',
                         'X-Hawk-Slack-Team': 'TAPPROVED', 'X-Hawk-Slack-User': 'UTEST',
                         'X-Token-User-Roles': 'suite/member'}

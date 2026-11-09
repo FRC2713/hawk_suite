@@ -55,6 +55,8 @@ echo "(https://dev-portal.onshape.com/keys); without one, the rest of Shop works
 echo "Leave blank to fill in .env later."
 prompt ONSHAPE_ACCESS_KEY "Onshape access key" ""
 prompt ONSHAPE_SECRET_KEY "Onshape secret key" ""
+prompt ONSHAPE_WEBHOOK_SECRET "Onshape webhook secret (optional)" ""
+prompt ONSHAPE_WEBHOOK_BASE_URL "Onshape webhook public origin (optional)" ""
 
 echo
 echo "── hawk-mod ─────────────────────────────────────────────────────"
@@ -120,6 +122,8 @@ HAWK_EYE_MATCH13_ACCOUNT=default
 # ── hawk-shop ────────────────────────────────────────────────────────
 ONSHAPE_ACCESS_KEY=${ONSHAPE_ACCESS_KEY}
 ONSHAPE_SECRET_KEY=${ONSHAPE_SECRET_KEY}
+ONSHAPE_WEBHOOK_SECRET=${ONSHAPE_WEBHOOK_SECRET}
+ONSHAPE_WEBHOOK_BASE_URL=${ONSHAPE_WEBHOOK_BASE_URL}
 APP_URL=https://shop.${DOMAIN}
 
 # ── hawk-mod ─────────────────────────────────────────────────────────

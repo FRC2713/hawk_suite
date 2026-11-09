@@ -23,6 +23,8 @@ jobs:
         run: |
           cat > /tmp/fixture.env <<'EOF'
           DOMAIN=ci.example.org
+          ONSHAPE_WEBHOOK_SECRET=ci-webhook-secret
+          ONSHAPE_WEBHOOK_BASE_URL=https://shop.ci.example.org
           SLACK_SIGNING_SECRET=mod-secret
           TOKEN_ENCRYPTION_KEY=mod-key
           HAWK_BOT_SLACK_SIGNING_SECRET=bot-secret

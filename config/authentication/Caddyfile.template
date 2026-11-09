@@ -202,6 +202,14 @@ shop.__DOMAIN__ {
     route @shopHealth {
         import shop-proxy
     }
+    # Onshape authenticates this exact callback with Shop's shared secret.
+    @shopOnshapeWebhook {
+        method POST
+        path /api/onshape/webhook
+    }
+    route @shopOnshapeWebhook {
+        import shop-proxy
+    }
     # The gateway cookie is SameSite=Lax, so it never reaches Onshape's iframe.
     # An anonymous embedded request gets only Shop's top-level "Open Hawk Shop"
     # continuation page; Shop serves nothing else without an identity.
