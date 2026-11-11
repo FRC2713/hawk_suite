@@ -226,6 +226,25 @@ HTTPServer(('0.0.0.0',3000), Handler).serve_forever()
                               'Eye keeps POST '+path+query+' blocked')
                     check(request('scout',path+'extra','POST',signed)[0] == 503,
                           'Eye keeps POST '+path+'extra blocked')
+            for path in ('/reports/import', '/reports/import/'):
+                for method in ('GET','HEAD','POST'):
+                    status, _, body = request('scout',path,method,signed)
+                    check(status == 200, 'Eye forwards signed '+method+' '+path)
+                    check(request('scout',path,method)[0] in (302,303,307,401,403),
+                          'Eye gates anonymous '+method+' '+path)
+                status, _, body = request('scout',path,'POST',signed)
+                check('AUTHP_ACCESS_TOKEN='+valid in json.loads(body).get('Cookie',''),
+                      'Eye import receives the session cookie '+path)
+                for method in ('PUT','PATCH','DELETE','OPTIONS'):
+                    check(request('scout',path,method,signed)[0] == 503,
+                          'Eye keeps '+method+' '+path+' blocked')
+                for query in ('?_action=x', '?x=1'):
+                    check(request('scout',path+query,'POST',signed)[0] == 503,
+                          'Eye keeps POST '+path+query+' blocked')
+            check(request('scout','/reports/import/extra','POST',signed)[0] == 503,
+                  'Eye keeps POST /reports/import/extra blocked')
+            check(request('scout','/reports/','GET',signed)[0] == 503,
+                  'Eye keeps /reports/ blocked')
             # Partners authenticate inside Eye using a revocable share code,
             # not a Suite membership cookie. Exercise every browser request:
             # invite, assets, form actions, polling, and JSON chat.
