@@ -214,7 +214,7 @@ no separate login and relies on these headers. No new Slack scopes are needed.
 | Host | Public exceptions | Everything else |
 | --- | --- | --- |
 | `apps` | Native sign-in/callback routes, public branding | Portal requires login; unknown paths 404 |
-| `mod`, `bot` | POST `/slack/events`; GET `/slack/oauth_redirect`, `/auth/slack/callback`; GET/HEAD `/health` | Gateway membership required, then the existing app login/permissions |
+| `mod`, `bot` | POST `/slack/events`; GET `/slack/oauth_redirect`; GET/HEAD `/health` | Gateway membership required, then the app's own permission checks |
 | `shop` | GET/HEAD `/api/health` and `/health`; GET/HEAD `/onshape_connector` with `Sec-Fetch-Dest: iframe`, static assets, and exact POST `/auth/embed/exchange`, which Shop protects with origin and one-use proof checks | Gateway membership required; Shop verifies the identity headers on every data route |
 | `scout` | GET/HEAD `/health`, partner pick list pages and static app assets; exact partner join/leave/chat POSTs, authorized by Eye's share code | Event/team views, scouting, the host pick list and its three edit actions, and docs require gateway membership; other routes 503. See [the exact allowlist](hawk-eye.md). |
 

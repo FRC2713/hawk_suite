@@ -158,9 +158,9 @@ HTTPServer(('0.0.0.0',3000), Handler).serve_forever()
                 received = {k.lower(): v for k,v in json.loads(body).items()}
                 check(status == 200 and not any(k.lower() in received for k in forged), host+' clears identity on bypass')
             for host in ('mod','bot'):
-                for path, method in [('/slack/events','POST'),('/slack/oauth_redirect','GET'),('/auth/slack/callback','GET'),('/health','GET')]:
+                for path, method in [('/slack/events','POST'),('/slack/oauth_redirect','GET'),('/health','GET')]:
                     check(request(host,path,method)[0] == 200,host+' forwards exact '+method+' '+path)
-                for path, method in [('/slack/events','GET'),('/slack/events/extra','POST'),('/slack/install','GET'),('/auth/slack/callback','POST')]:
+                for path, method in [('/slack/events','GET'),('/slack/events/extra','POST'),('/slack/install','GET'),('/auth/slack/callback','GET')]:
                     check(request(host,path,method)[0] != 200,host+' protects '+method+' '+path)
             for path in ('/', '/onshape_connector', '/signin', '/api/kanban/cards', '/api/files/x.png'):
                 check(request('shop',path)[0] in (302,303,307,401,403), 'Shop gates anonymous '+path)
