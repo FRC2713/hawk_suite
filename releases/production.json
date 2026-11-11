@@ -2,8 +2,8 @@
   "schema": 1,
   "apps": {
     "hawk-shop": {
-      "revision": "62e85ce3e795ebf787a0d70abe90a1f97dbc9d9c",
-      "digest": "sha256:019b8d7923346096498709906c031b925d4aafdf7350311e207e69b3c6411abf",
+      "revision": "11e3fe731ebafffed80f31822a2cd9e07c2d8f9e",
+      "digest": "sha256:5a8227dca27e18cdf810a69615c39398da1357bb1007c44c686d24ae858db150",
       "contract": 1
     },
     "hawk-mod": {
