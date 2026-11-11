@@ -18,6 +18,8 @@ assert not set(mod).intersection({'DIGEST_CRON', 'QUARTERLY_CRON', 'STUDENT_USER
 assert services['hawk-shop']['environment']['APP_URL'] == 'https://shop.ci.example.org'
 assert services['hawk-shop']['environment']['ONSHAPE_WEBHOOK_SECRET'] == 'ci-webhook-secret'
 assert services['hawk-shop']['environment']['ONSHAPE_WEBHOOK_BASE_URL'] == 'https://shop.ci.example.org'
+assert services['hawk-shop']['environment']['SLACK_BOT_TOKEN'] == 'shop-slack'
+assert 'SLACK_BOT_TOKEN' not in mod and 'SLACK_BOT_TOKEN' not in bot
 for app in ('hawk-shop', 'hawk-mod', 'hawk-bot', 'hawk-eye'):
     assert '@sha256:' in services[app]['image']
 
