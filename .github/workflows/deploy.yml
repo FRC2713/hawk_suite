@@ -70,6 +70,9 @@ jobs:
 
           ONSHAPE_ACCESS_KEY: ${{ secrets.ONSHAPE_ACCESS_KEY }}
           ONSHAPE_SECRET_KEY: ${{ secrets.ONSHAPE_SECRET_KEY }}
+          # hawk-shop's Slack bot (status notifications and problem reports).
+          # Optional: unset, Shop works and its Slack page says not configured.
+          HAWK_SHOP_SLACK_BOT_TOKEN: ${{ secrets.HAWK_SHOP_SLACK_BOT_TOKEN }}
           SLACK_SIGNING_SECRET: ${{ secrets.SLACK_SIGNING_SECRET }}
           SLACK_CLIENT_ID: ${{ secrets.SLACK_CLIENT_ID }}
           SLACK_CLIENT_SECRET: ${{ secrets.SLACK_CLIENT_SECRET }}

@@ -57,6 +57,7 @@ prompt ONSHAPE_ACCESS_KEY "Onshape access key" ""
 prompt ONSHAPE_SECRET_KEY "Onshape secret key" ""
 prompt ONSHAPE_WEBHOOK_SECRET "Onshape webhook secret (optional)" ""
 prompt ONSHAPE_WEBHOOK_BASE_URL "Onshape webhook public origin (optional)" ""
+prompt HAWK_SHOP_SLACK_BOT_TOKEN "Hawk Shop Slack bot token (optional)" ""
 
 echo
 echo "── hawk-mod ─────────────────────────────────────────────────────"
@@ -124,6 +125,7 @@ ONSHAPE_ACCESS_KEY=${ONSHAPE_ACCESS_KEY}
 ONSHAPE_SECRET_KEY=${ONSHAPE_SECRET_KEY}
 ONSHAPE_WEBHOOK_SECRET=${ONSHAPE_WEBHOOK_SECRET}
 ONSHAPE_WEBHOOK_BASE_URL=${ONSHAPE_WEBHOOK_BASE_URL}
+HAWK_SHOP_SLACK_BOT_TOKEN=${HAWK_SHOP_SLACK_BOT_TOKEN}
 APP_URL=https://shop.${DOMAIN}
 
 # ── hawk-mod ─────────────────────────────────────────────────────────

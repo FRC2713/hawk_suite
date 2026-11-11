@@ -47,6 +47,11 @@ services:
       ONSHAPE_WEBHOOK_SECRET: ${ONSHAPE_WEBHOOK_SECRET:-}
       ONSHAPE_WEBHOOK_BASE_URL: ${ONSHAPE_WEBHOOK_BASE_URL:-}
 
+      # --- Slack bot (optional) -------------------------------------------
+      # Bot token for Shop's own Slack app, separate from hawk-mod's and
+      # hawk-bot's. The workspace defaults to HAWK_SUITE_TEAM_ID.
+      SLACK_BOT_TOKEN: ${HAWK_SHOP_SLACK_BOT_TOKEN:-}
+
       # --- Deployment ------------------------------------------------------
       # Public origin; Shop accepts writes only from this origin.
       APP_URL: ${APP_URL:-https://shop.${DOMAIN}}
