@@ -7,13 +7,13 @@
       "contract": 1
     },
     "hawk-mod": {
-      "revision": "94fccd102359b9f0468d5c1133ac0f4476f9a740",
-      "digest": "sha256:bab720b3967084d38859b5ace7967fdd17c21cef8ee1d50bda26daeb41c1a8cb",
+      "revision": "970dedc8c35ab8a465bd6efd0a4af6773e11c3cc",
+      "digest": "sha256:182612a268826781f8015ab20fcdbeab9f53134d31cb7bc97cda796550c9787a",
       "contract": 1
     },
     "hawk-bot": {
-      "revision": "937c0709821901115b983e7a38adc87dbd469be5",
-      "digest": "sha256:140a295e5945716529a3203e2d1a20af4fc2ffd99a0047375e7be42dba4afced",
+      "revision": "47c52402c5876517813e16423d7ef548d5d2f1b7",
+      "digest": "sha256:cfbdd3443148da8f5d2f53f7364c001b69a5f0e1886e3f8c95739c5924b8ccbc",
       "contract": 1
     },
     "hawk-eye": {
