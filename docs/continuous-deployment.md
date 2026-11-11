@@ -133,8 +133,9 @@ backup, container checks, and HTTPS checks. See [hawk-eye.md](hawk-eye.md).
 Hawk Eye provider secrets are `HAWK_EYE_TBA_API_KEY` and
 `HAWK_EYE_MATCH13_API_KEY`. `HAWK_EYE_MATCH13_ACCOUNT` is an optional repository
 variable, default `default`, used for stable account-level cache/quota tracking.
-These reach only the Hawk Eye container. Scouting ingestion and REST/MCP
-endpoints remain outside the proxy allowlist.
+These reach only the Hawk Eye container. Scouting ingestion and REST endpoints
+remain outside the proxy allowlist. Authenticated releases open `/mcp` to MCP
+clients holding an Eye OAuth token; see [hawk-eye-mcp-oauth.md](hawk-eye-mcp-oauth.md).
 
 ## Authentication gateway releases
 
@@ -170,7 +171,8 @@ the browser's gateway cookie themselves. Public exceptions receive no identity.
 
 Mod and Bot still check their installed workspace and existing administrator
 permissions on every config request. Eye still grants only browser reader
-permissions and keeps REST/MCP authentication separate. Shop reaches Onshape
+permissions and keeps REST authentication separate. Members can approve MCP
+clients for the same reader permissions; those clients use their own tokens. Shop reaches Onshape
 with a server API key, not per-user OAuth.
 Without proxy trust enabled, Mod and Bot retain local Slack sign-in and Eye
 retains reader-token access.
@@ -216,7 +218,7 @@ no separate login and relies on these headers. No new Slack scopes are needed.
 | `apps` | Native sign-in/callback routes, public branding | Portal requires login; unknown paths 404 |
 | `mod`, `bot` | POST `/slack/events`; GET `/slack/oauth_redirect`, `/auth/slack/callback`; GET/HEAD `/health` | Gateway membership required, then the existing app login/permissions |
 | `shop` | GET/HEAD `/api/health` and `/health`; GET/HEAD `/onshape_connector` with `Sec-Fetch-Dest: iframe`, static assets, and exact POST `/auth/embed/exchange`, which Shop protects with origin and one-use proof checks | Gateway membership required; Shop verifies the identity headers on every data route |
-| `scout` | GET/HEAD `/health`, partner pick list pages and static app assets; exact partner join/leave/chat POSTs, authorized by Eye's share code | Event/team views, scouting, the host pick list and its three edit actions, and docs require gateway membership; other routes 503. See [the exact allowlist](hawk-eye.md). |
+| `scout` | GET/HEAD `/health`, partner pick list pages and static app assets; exact partner join/leave/chat POSTs, authorized by Eye's share code; MCP OAuth metadata, exact POST `/oauth/register`, `/oauth/token`, `/oauth/revoke`, and `/mcp` with the client's bearer token and no cookies | Event/team views, scouting, the host pick list and its three edit actions, docs, and the MCP consent and connected-apps pages require gateway membership; other routes 503. See [the exact allowlist](hawk-eye.md). |
 
 The Deploy plan requires an `authentication` entry in the release manifest;
 its absence intentionally blocks deployment until a tested gateway image is

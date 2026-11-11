@@ -127,6 +127,23 @@ apps.__DOMAIN__ {
     authorize with suite
     import eye-proxy
 }
+# MCP OAuth (docs/hawk-eye-mcp-oauth.md). Public OAuth endpoints never see a
+# Suite cookie or a caller's Authorization header.
+(eye-oauth-proxy) {
+    reverse_proxy hawk-eye:3000 {
+        header_up -Authorization
+        header_up -Cookie
+        header_up -X-Hawk-Identity
+    }
+}
+# The client's bearer token is the only credential /mcp accepts. Cookies are
+# dropped so a browser session can never authorize an MCP call.
+(eye-mcp-proxy) {
+    reverse_proxy hawk-eye:3000 {
+        header_up -Cookie
+        header_up -X-Hawk-Identity
+    }
+}
 scout.__DOMAIN__ {
   route {
     import clear-suite-identity
@@ -193,6 +210,41 @@ scout.__DOMAIN__ {
     }
     route @pickListActions {
         import eye-protected
+    }
+    # MCP clients discover, register and exchange tokens without a Suite
+    # session. Eye checks PKCE, client, redirect URI and rate limits.
+    @eyeOAuthMetadata {
+        method GET HEAD
+        path /.well-known/oauth-protected-resource /.well-known/oauth-protected-resource/mcp /.well-known/oauth-authorization-server
+    }
+    route @eyeOAuthMetadata {
+        import eye-oauth-proxy
+    }
+    @eyeOAuthPublic {
+        method POST
+        path /oauth/register /oauth/token /oauth/revoke
+        expression {http.request.uri.query} == ''
+    }
+    route @eyeOAuthPublic {
+        import eye-oauth-proxy
+    }
+    # Consent and connected apps need a signed-in member. Eye's form actions
+    # post back to these paths with an _action query.
+    @eyeOAuthMember {
+        method GET HEAD POST
+        path /oauth/authorize /oauth/connections
+    }
+    route @eyeOAuthMember {
+        import eye-protected
+    }
+    # Stateless Streamable HTTP. Eye answers GET and DELETE with 405.
+    @eyeMcp {
+        method POST GET DELETE
+        path /mcp
+        expression {http.request.uri.query} == ''
+    }
+    route @eyeMcp {
+        import eye-mcp-proxy
     }
     respond "Hawk Eye scouting is not available yet." 503
   }
