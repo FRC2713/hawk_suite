@@ -49,8 +49,8 @@ authentication overlay sets `HAWK_SUITE_TRUST_PROXY=true`, `HAWK_SUITE_TEAM_ID`
 and `HAWK_SUITE_ISSUER` (`https://apps.<domain>/`). Eye trusts the identity
 headers Caddy injects after it verifies the session; it no longer checks the
 session cookie itself. Any workspace member gets scouting read access and pick
-list editing. Members can add reports only through an approved MCP client (see
-below); rebuilds and REST still need operator-issued JWTs and stay blocked at
+list editing. Members can add reports through an approved MCP client (see
+below) or by uploading a JSON file at `/reports/import/`; rebuilds and REST still need operator-issued JWTs and stay blocked at
 the proxy. `/health` remains public. See the
 [authentication gateway release guide](continuous-deployment.md#authentication-gateway-releases).
 
@@ -59,6 +59,9 @@ event pick list page (`/events/{eventKey}/picklist/`) and its live state
 (`picklist.json`), and three exact POST actions with no query string:
 `/_actions/editPickList`, `/_actions/sharePickList`, and
 `/_actions/postPickListMessage`, each with an optional trailing slash.
+GET, HEAD and POST `/reports/import` and `/reports/import/` with no query
+string serve the report import page and its upload. Eye caps the file at 8 MiB
+and stores it all or nothing.
 
 Partner sharing bypasses Slack sign-in. GET/HEAD `/picklist` and `/picklist/`
 serve the join form or shared board; `/picklist/state.json` serves live updates.

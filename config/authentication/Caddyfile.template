@@ -211,6 +211,16 @@ scout.__DOMAIN__ {
     route @pickListActions {
         import eye-protected
     }
+    # Members upload a JSON file of reports. The page posts back to itself
+    # with no query string; Eye validates the whole file in one transaction.
+    @reportImport {
+        method GET HEAD POST
+        path /reports/import /reports/import/
+        expression {http.request.uri.query} == ''
+    }
+    route @reportImport {
+        import eye-protected
+    }
     # MCP clients discover, register and exchange tokens without a Suite
     # session. Eye checks PKCE, client, redirect URI and rate limits.
     @eyeOAuthMetadata {
