@@ -357,7 +357,7 @@ shop.__DOMAIN__ {
     }
     @callbacks {
         method GET
-        path /slack/oauth_redirect /auth/slack/callback
+        path /slack/oauth_redirect
     }
     @health {
         method GET HEAD
