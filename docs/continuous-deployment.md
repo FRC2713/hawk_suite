@@ -172,7 +172,7 @@ the browser's gateway cookie themselves. Public exceptions receive no identity.
 Mod and Bot still check their installed workspace and existing administrator
 permissions on every config request. Eye still grants only browser reader
 permissions and keeps REST authentication separate. Members can approve MCP
-clients for the same reader permissions; those clients use their own tokens. Shop reaches Onshape
+clients to read and to add reports; those clients use their own tokens. Shop reaches Onshape
 with a server API key, not per-user OAuth.
 Without proxy trust enabled, Mod and Bot retain local Slack sign-in and Eye
 retains reader-token access.

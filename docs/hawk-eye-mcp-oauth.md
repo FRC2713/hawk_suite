@@ -6,8 +6,8 @@ The Eye side is on hawk-eye branch `claude/mcp-oauth`. The gateway side is on
 this repo's `claude/hawk-suite-oauth-support-4cc654`. Neither is merged.
 
 A workspace member should be able to add `https://scout.<domain>/mcp` to an
-MCP client such as Claude or Claude Code, sign in with Slack, and get read
-access to scouting data. Nobody should have to hand them a JWT.
+MCP client such as Claude or Claude Code, sign in with Slack, read scouting
+data, and add scouting reports. Nobody should have to hand them a JWT.
 
 This covers Hawk Eye only. Hawk Shop could follow the same pattern later.
 Hawk Mod should never expose MCP, given what its database holds.
@@ -34,8 +34,8 @@ Checked against hawk-eye `main` at `19df30b` (2026-11-08), with no open PRs.
 
 ## Non-goals
 
-- Granting `reports:write` or `analysis:manage` through OAuth. Tablets and
-  operators keep operator-issued JWTs.
+- Granting `analysis:manage` (rebuilds, processing status) through OAuth.
+  Tablets and operators keep operator-issued JWTs.
 - Opening the REST API. It stays blocked at the proxy.
 - Browser-based MCP clients. CORS stays off and Eye's `Origin` check stays.
 - A suite-wide authorization server. Revisit that if a second app needs MCP.
@@ -107,13 +107,17 @@ token can then sign in again instead of hitting a 503.
 
 ### Permissions
 
-OAuth scopes are Eye's existing permission names. A member may request
-`reports:read` and `analysis:read`, the same access they have in the browser.
-A request for anything else fails with `invalid_scope`. With no scope, Eye
-grants both.
+OAuth scopes are Eye's existing permission names. Any member may request
+`reports:read`, `analysis:read` and `reports:write`. A request for anything
+else fails with `invalid_scope`. With no scope, Eye grants all three.
 
-That exposes `get_report`, `get_raw_report`, `list_reports`, `list_matches`
-and `list_teams`. Eye's tool filtering and per-call permission checks stay as
+That exposes `get_report`, `get_raw_report`, `list_reports`, `list_matches`,
+`list_teams` and `upload_report`. Uploaded reports record the member's
+`slack:<team>:<user>` subject as the uploader, are immutable like every other
+report, and share the per-subject upload rate limit with REST. Browser pages
+still never get `reports:write`. Limiting uploads to Slack Owners and Admins
+was considered and dropped: Eye would need its own Slack token to read
+`users.info`. Eye's tool filtering and per-call permission checks stay as
 they are. The principal's `sub` is `slack:<team>:<user>`, and Eye records the
 OAuth `client_id` alongside it.
 
@@ -317,8 +321,10 @@ The fixture backend now answers DELETE, so the proxied DELETE can be checked.
 3. Run Deploy. Then check against production:
    - Anonymous `/mcp` returns 401 with the metadata header.
    - A request with only a suite cookie on `/mcp` returns 401.
-   - MCP Inspector and Claude complete sign-in and list only read tools.
-   - Asking for `reports:write` fails.
+   - MCP Inspector and Claude complete sign-in and list the five read tools
+     plus `upload_report`.
+   - Uploading a report through Claude records the member as the uploader.
+   - Asking for `analysis:manage` fails.
    - Disconnecting a client stops its next request.
 4. To roll back, remove the overlay setting and the routes. Existing grants
    become unreachable and expire within 7 days.
@@ -335,13 +341,21 @@ host on the consent page is the main defense. An allowlist of known redirect
 hosts would be stronger and less convenient.
 
 Report fields are untrusted text written by scouts. An agent reading them can
-meet prompt injection. Read-only scopes limit what that can do through Eye.
+meet prompt injection, and with `reports:write` it could be talked into
+uploading fabricated reports. Those can't be deleted; they are attributed to
+the member and logged with the client in `oauth_audit`, so they can be found
+and superseded. Rebuilds stay out of reach.
+
+Any member can add reports, not only scouts or mentors. Bad data reaches
+analysis until someone notices.
 
 ## Open questions
 
 - Allow any client, or only a list of known redirect hosts?
 - Should pick-list edits ever be MCP tools?
-- Should tablets ever get `reports:write` through a sign-in flow instead of
+- Should tablets get `reports:write` through a sign-in flow instead of
   operator JWTs? That would be a separate design, probably the device
   authorization grant.
+- Should uploads be limited to some members later, for example Slack Owners
+  and Admins, or a user group?
 - How long should Eye keep audit rows?

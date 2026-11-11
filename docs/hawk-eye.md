@@ -49,8 +49,9 @@ authentication overlay sets `HAWK_SUITE_TRUST_PROXY=true`, `HAWK_SUITE_TEAM_ID`
 and `HAWK_SUITE_ISSUER` (`https://apps.<domain>/`). Eye trusts the identity
 headers Caddy injects after it verifies the session; it no longer checks the
 session cookie itself. Any workspace member gets scouting read access and pick
-list editing. Uploads, rebuilds and REST still need operator-issued JWTs and
-stay blocked at the proxy. `/health` remains public. See the
+list editing. Members can add reports only through an approved MCP client (see
+below); rebuilds and REST still need operator-issued JWTs and stay blocked at
+the proxy. `/health` remains public. See the
 [authentication gateway release guide](continuous-deployment.md#authentication-gateway-releases).
 
 Gated scouting routes are the event scouting tab, team scouting views, the
@@ -102,7 +103,8 @@ missing or rejected credentials have distinct recovery states in the app.
 
 Authenticated releases set `MCP_OAUTH_ENABLED=true` for Eye. Members add
 `https://scout.<domain>/mcp` to an MCP client, sign in with Slack, and approve
-the client for `reports:read` and `analysis:read`. Connections last 7 days and
+the client to read scouting data and add reports (`reports:read`,
+`analysis:read`, `reports:write`). Connections last 7 days and
 can be ended at `/oauth/connections`. The design, routes and threat notes are
 in [hawk-eye-mcp-oauth.md](hawk-eye-mcp-oauth.md).
 
