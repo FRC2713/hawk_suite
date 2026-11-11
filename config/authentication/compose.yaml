@@ -3,7 +3,7 @@ services:
   caddy:
     image: ${HAWK_AUTH_IMAGE:?Pin the tested authentication image in the release}
     environment:
-      CADDY_CONFIG_REV: auth-slack-app-callbacks-v9
+      CADDY_CONFIG_REV: auth-eye-mcp-oauth-v10
     volumes:
       - ${HAWK_AUTH_CONFIG_DIR:?Private release configuration}:/etc/hawk-auth:ro
       - ${HAWK_AUTH_CONFIG_DIR}/Caddyfile:/etc/caddy/Caddyfile:ro
@@ -17,6 +17,9 @@ services:
       HAWK_SUITE_ISSUER: https://apps.${DOMAIN}/
       HAWK_SUITE_TRUST_PROXY: "true"
       HAWK_SUITE_TEAM_ID: ${HAWK_AUTH_SLACK_TEAM_ID:?Verified gateway workspace}
+      # Members connect MCP clients with Slack sign-in. Requires an Eye image
+      # whose .hawk/app.json declares this setting.
+      MCP_OAUTH_ENABLED: "true"
   hawk-mod:
     environment:
       HAWK_SUITE_ISSUER: https://apps.${DOMAIN}/

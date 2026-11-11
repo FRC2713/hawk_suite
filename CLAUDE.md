@@ -23,7 +23,7 @@ This repo owns routing, wiring, env plumbing, and the deploy/update experience.
 
 Scope is deliberately these four apps. Read `docs/hawk-eye.md` before changing
 Hawk Eye releases or public routes. Its construction page and docs are public;
-Slack-signed-in members can view scouting and edit the pick list; ingestion and REST/MCP stay blocked. QRScout and rhr-mfg were removed — see
+Slack-signed-in members can view scouting and edit the pick list, and on authenticated releases can connect MCP clients to `/mcp` through OAuth to read and add reports (`docs/hawk-eye-mcp-oauth.md`); REST stays blocked. QRScout and rhr-mfg were removed — see
 PLAN.md's non-goals before adding anything back.
 
 hawk-mod and hawk-bot are **two separate Slack apps** in one workspace, with

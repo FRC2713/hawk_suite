@@ -44,13 +44,14 @@ retain the backup encryption key in the team's password manager.
   existing three apps during the first deployment with the new pipeline.
 - Merge to main, then run the Deploy workflow from main.
 
-Reviewed authenticated releases gate Eye with Slack sign-in at Caddy and
-forward the signed `AUTHP_ACCESS_TOKEN` session cookie; `/health` remains
-public. The authentication overlay gives Eye `HAWK_SUITE_ISSUER`
-(`https://apps.<domain>/`) and `HAWK_SUITE_PUBLIC_KEY` (the gateway's public
-key, base64 PEM). Eye verifies the session itself and gives any workspace
-member scouting read access and pick list editing. Uploads, rebuilds, REST, and
-MCP still need operator-issued JWTs and stay blocked at the proxy. See the
+Reviewed authenticated releases gate Eye with Slack sign-in at Caddy. The
+authentication overlay sets `HAWK_SUITE_TRUST_PROXY=true`, `HAWK_SUITE_TEAM_ID`
+and `HAWK_SUITE_ISSUER` (`https://apps.<domain>/`). Eye trusts the identity
+headers Caddy injects after it verifies the session; it no longer checks the
+session cookie itself. Any workspace member gets scouting read access and pick
+list editing. Members can add reports only through an approved MCP client (see
+below); rebuilds and REST still need operator-issued JWTs and stay blocked at
+the proxy. `/health` remains public. See the
 [authentication gateway release guide](continuous-deployment.md#authentication-gateway-releases).
 
 Gated scouting routes are the event scouting tab, team scouting views, the
@@ -77,8 +78,8 @@ editing actions, and documentation still require Suite membership. Tests in
 `scripts/test-auth-routing.py` exercise the production template against
 disposable backends, including partner requests and blocked alternatives.
 
-Older Eye images reject the two settings at deploy, so an Eye image from
-FRC2713/hawk-eye 5b93df6 or later must be promoted with them. Any further
+Older Eye images reject the trusted-proxy settings at deploy, so promote an
+Eye image from FRC2713/hawk-eye 57dba91 or later with them. Any further
 scouting route needs the same review of Eye's authorization and the Caddy
 allowlist.
 
@@ -93,7 +94,31 @@ sets a stable match13 cache/quota namespace and defaults to `default`.
 Interactive installations use the same prefixed settings in `.env`.
 
 Only GET/HEAD requests to valid public event views, team views, and sanitized
-event update endpoints are added to the proxy allowlist. REST, MCP, and all
-mutation requests remain blocked. JWT configuration and private scouting access
-are not activated by this release. Live data requires valid provider keys;
+event update endpoints are added to the proxy allowlist for provider data.
+REST and other mutation requests remain blocked. JWT configuration is not
+activated by this release. Live data requires valid provider keys;
 missing or rejected credentials have distinct recovery states in the app.
+
+## MCP connections
+
+Authenticated releases set `MCP_OAUTH_ENABLED=true` for Eye. Members add
+`https://scout.<domain>/mcp` to an MCP client, sign in with Slack, and approve
+the client to read scouting data and add reports (`reports:read`,
+`analysis:read`, `reports:write`). Connections last 7 days and
+can be ended at `/oauth/connections`. The design, routes and threat notes are
+in [hawk-eye-mcp-oauth.md](hawk-eye-mcp-oauth.md).
+
+The proxy passes, without a Suite session:
+
+- GET/HEAD `/.well-known/oauth-protected-resource`, its `/mcp` form, and
+  `/.well-known/oauth-authorization-server`.
+- Exact POST `/oauth/register`, `/oauth/token` and `/oauth/revoke`, with no
+  query string, cookies or `Authorization`.
+- POST, GET and DELETE `/mcp` with no query string. The client's bearer token
+  passes through; cookies and identity headers do not.
+
+`/oauth/authorize` and `/oauth/connections`, including their `?_action=` form
+posts, require Suite membership like other host pages.
+
+The Eye image must declare `MCP_OAUTH_ENABLED` in `.hawk/app.json` before the
+overlay sets it; Deploy refuses undeclared settings.

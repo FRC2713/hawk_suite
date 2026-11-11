@@ -62,6 +62,7 @@ class Handler(BaseHTTPRequestHandler):
   self.wfile.write(json.dumps(dict(self.headers)).encode())
  do_POST = do_GET
  do_HEAD = do_GET
+ do_DELETE = do_GET
 HTTPServer(('0.0.0.0',3000), Handler).serve_forever()
 ''')
         docker('network', 'create', name)
@@ -276,6 +277,68 @@ HTTPServer(('0.0.0.0',3000), Handler).serve_forever()
                           'Eye keeps POST '+path+' blocked')
             for path in ('/picklist/extra', '/picklist/state.json/extra', '/events/2026casj/picklist/extra'):
                 check(request('scout',path,headers=signed)[0] == 503,'Eye keeps GET '+path+' blocked')
+            # MCP OAuth (docs/hawk-eye-mcp-oauth.md). Public routes carry no
+            # Suite cookie or identity; /mcp keeps only the client's bearer.
+            def headers_of(body):
+                return {k.lower(): v for k, v in json.loads(body).items()}
+            hostile = {**forged, 'Cookie': 'AUTHP_ACCESS_TOKEN='+valid, 'Authorization': 'Bearer hek_at_client'}
+            for method in ('POST', 'GET', 'DELETE'):
+                status, _, body = request('scout','/mcp',method,hostile)
+                received = headers_of(body) if status == 200 else {}
+                check(status == 200 and received.get('authorization') == 'Bearer hek_at_client',
+                      'Eye forwards '+method+' /mcp with the client bearer token')
+                check('cookie' not in received and 'x-hawk-identity' not in received
+                      and not any(k.lower() in received for k in forged),
+                      'Eye /mcp drops cookies and caller identity on '+method)
+            for path, method in [('/mcp','PUT'), ('/mcp','PATCH'), ('/mcp?x=1','POST'),
+                                 ('/mcp/','POST'), ('/mcp/extra','POST'), ('/mcpx','POST')]:
+                check(request('scout',path,method,hostile)[0] == 503,
+                      'Eye keeps '+method+' '+path+' blocked')
+            oauth_public = [(p, m) for p in ('/.well-known/oauth-protected-resource',
+                                             '/.well-known/oauth-protected-resource/mcp',
+                                             '/.well-known/oauth-authorization-server')
+                            for m in ('GET', 'HEAD')]
+            oauth_public += [(p, 'POST') for p in ('/oauth/register', '/oauth/token', '/oauth/revoke')]
+            for path, method in oauth_public:
+                status, _, body = request('scout',path,method,hostile)
+                check(status == 200, 'Eye forwards anonymous '+method+' '+path)
+                if method != 'HEAD':
+                    received = headers_of(body)
+                    check('authorization' not in received and 'cookie' not in received
+                          and 'x-hawk-identity' not in received
+                          and not any(k.lower() in received for k in forged),
+                          'Eye OAuth endpoint gets no credentials or identity '+path)
+            for path, method in [('/oauth/token','GET'), ('/oauth/token?x=1','POST'),
+                                 ('/oauth/token/','POST'), ('/oauth/register','PUT'),
+                                 ('/oauth/revoke/extra','POST'),
+                                 ('/.well-known/oauth-authorization-server','POST'),
+                                 ('/.well-known/oauth-protected-resource/other','GET'),
+                                 ('/.well-known/openid-configuration','GET')]:
+                check(request('scout',path,method,hostile)[0] == 503,
+                      'Eye keeps '+method+' '+path+' blocked')
+            for path in ('/oauth/authorize?client_id=x&state=y', '/oauth/connections'):
+                check(request('scout',path)[0] in (302,303,307,401,403),
+                      'Eye gates anonymous '+path)
+                status, _, body = request('scout',path,headers=signed)
+                received = headers_of(body) if status == 200 else {}
+                check(status == 200 and received.get('x-hawk-slack-user') == 'UTEST'
+                      and received.get('x-token-subject') == 'slack:TAPPROVED:UTEST'
+                      and 'authorization' not in received,
+                      'Eye consent gets verified identity '+path)
+                # An MCP token is never a Suite session, even beside a valid cookie.
+                for extra in ({'Authorization': 'Bearer hek_at_client'},
+                              {**signed, 'Authorization': 'Bearer hek_at_client'}):
+                    check(request('scout',path,headers=extra)[0] in (302,303,307,401,403),
+                          'Eye consent refuses a bearer token as a session '+path)
+            for path in ('/oauth/authorize?_action=approveMcpClient', '/oauth/connections?_action=disconnectMcpClient'):
+                check(request('scout',path,'POST')[0] in (302,303,307,401,403),
+                      'Eye gates anonymous POST '+path)
+                check(request('scout',path,'POST',signed)[0] == 200,
+                      'Eye forwards signed POST '+path)
+            for path, method in [('/oauth/authorize','PUT'), ('/oauth/authorize/extra','GET'),
+                                 ('/oauth/connections/revoke','POST')]:
+                check(request('scout',path,method,signed)[0] == 503,
+                      'Eye keeps '+method+' '+path+' blocked')
             check(b'Test environment' not in request('apps','/auth/login')[2],'production login branding')
             print(f'{count} routing checks passed; no real app sessions or browser iframe behavior tested.')
         finally:

@@ -231,10 +231,14 @@ class ComposeCredentialTests(unittest.TestCase):
         for app in APPS:
             self.assertNotIn('HAWK_SUITE_TRUST_PROXY', base['services'][app]['environment'], msg=app)
         for app in APPS:
+            self.assertNotIn('MCP_OAUTH_ENABLED', base['services'][app]['environment'], msg=app)
+        for app in APPS:
             app_base, gated_app = base['services'][app], overlay['services'][app]
+            # Only Eye offers MCP OAuth (docs/hawk-eye-mcp-oauth.md).
+            oauth = {'MCP_OAUTH_ENABLED': 'true'} if app == 'hawk-eye' else {}
             self.assertEqual({**app_base['environment'], 'HAWK_SUITE_ISSUER': 'https://apps.ci.example.org/',
-                              'HAWK_SUITE_TRUST_PROXY': 'true', 'HAWK_SUITE_TEAM_ID': 'TAPPROVED'}, gated_app['environment'],
-                             msg=app)
+                              'HAWK_SUITE_TRUST_PROXY': 'true', 'HAWK_SUITE_TEAM_ID': 'TAPPROVED', **oauth},
+                             gated_app['environment'], msg=app)
             self.assertEqual({k: v for k, v in app_base.items() if k != 'environment'},
                              {k: v for k, v in gated_app.items() if k != 'environment'}, msg=app)
         for app in APPS:

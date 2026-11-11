@@ -104,8 +104,9 @@ disagrees.
 
 ## Status
 
-The suite composes four apps. Hawk Eye exposes event/team views and docs;
-scouting remains unimplemented. Authenticated releases require Slack sign-in
+The suite composes four apps. Hawk Eye exposes event/team views and docs, and
+on authenticated releases an MCP endpoint that members connect through OAuth
+to read and add reports; tablet ingestion remains unimplemented. Authenticated releases require Slack sign-in
 for Shop, Mod, Bot, and Eye. See
 [docs/hawk-eye.md](docs/hawk-eye.md) and
 [docs/continuous-deployment.md](docs/continuous-deployment.md#authentication-gateway-releases).
