@@ -294,6 +294,15 @@ shop.__DOMAIN__ {
     route @shopOnshapeWebhook {
         import shop-proxy
     }
+    # Slack's servers send button clicks here with no Suite session. Shop
+    # verifies Slack's signature and only acknowledges.
+    @shopSlackInteractions {
+        method POST
+        path /api/slack/interactions
+    }
+    route @shopSlackInteractions {
+        import shop-proxy
+    }
     # The popup must authenticate using Suite's ordinary top-level session.
     # Never accept the embedded cookie as the authority for issuing new codes.
     @shopPopup path /auth/embed/authorize /auth/embed/authorize/

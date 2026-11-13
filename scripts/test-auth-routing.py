@@ -131,8 +131,17 @@ HTTPServer(('0.0.0.0',3000), Handler).serve_forever()
             check(not any(key in forwarded for key in ('x-hawk-slack-team', 'x-hawk-slack-user',
                                                        'x-token-subject', 'x-token-user-roles')),
                   'Shop callback strips forged Suite identity')
+            status, _, body = request('shop', '/api/slack/interactions', 'POST',
+                                      {'X-Hawk-Slack-Team': 'forged', 'X-Token-Subject': 'forged',
+                                       'X-Token-User-Roles': 'suite/member'})
+            check(status == 200, 'Shop forwards anonymous Slack interactions to app signature verification')
+            forwarded = {key.lower(): value for key, value in json.loads(body).items()}
+            check(not any(key in forwarded for key in ('x-hawk-slack-team', 'x-token-subject',
+                                                       'x-token-user-roles')),
+                  'Shop Slack interactions strip forged Suite identity')
             for method, path in (('GET', '/api/onshape/webhook'), ('POST', '/api/onshape/webhook/'),
-                                 ('POST', '/api/onshape/webhook/extra')):
+                                 ('POST', '/api/onshape/webhook/extra'), ('GET', '/api/slack/interactions'),
+                                 ('POST', '/api/slack/interactions/'), ('POST', '/api/slack/interactions/x')):
                 check(request('shop', path, method)[0] in (302,303,307,401,403),
                       'Shop gates non-callback request '+method+' '+path)
             identity = {'X-Token-Subject': 'slack:TAPPROVED:UTEST',
