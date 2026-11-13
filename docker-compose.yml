@@ -51,6 +51,10 @@ services:
       # Bot token for Shop's own Slack app, separate from hawk-mod's and
       # hawk-bot's. The workspace defaults to HAWK_SUITE_TEAM_ID.
       SLACK_BOT_TOKEN: ${HAWK_SHOP_SLACK_BOT_TOKEN:-}
+      # Optional. Same app's signing secret: enables link buttons and the
+      # signed /api/slack/interactions acknowledgement. hawk-mod reads the
+      # unprefixed SLACK_SIGNING_SECRET, so this one must stay prefixed.
+      SLACK_SIGNING_SECRET: ${HAWK_SHOP_SLACK_SIGNING_SECRET:-}
 
       # --- Deployment ------------------------------------------------------
       # Public origin; Shop accepts writes only from this origin.

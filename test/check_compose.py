@@ -20,6 +20,13 @@ assert services['hawk-shop']['environment']['ONSHAPE_WEBHOOK_SECRET'] == 'ci-web
 assert services['hawk-shop']['environment']['ONSHAPE_WEBHOOK_BASE_URL'] == 'https://shop.ci.example.org'
 assert services['hawk-shop']['environment']['SLACK_BOT_TOKEN'] == 'shop-slack'
 assert 'SLACK_BOT_TOKEN' not in mod and 'SLACK_BOT_TOKEN' not in bot
+# Three Slack apps, three signing secrets: Shop's must never be hawk-mod's.
+assert services['hawk-shop']['environment']['SLACK_SIGNING_SECRET'] == 'shop-secret'
+assert len({
+    services['hawk-shop']['environment']['SLACK_SIGNING_SECRET'],
+    mod['SLACK_SIGNING_SECRET'],
+    bot['SLACK_SIGNING_SECRET'],
+}) == 3
 for app in ('hawk-shop', 'hawk-mod', 'hawk-bot', 'hawk-eye'):
     assert '@sha256:' in services[app]['image']
 

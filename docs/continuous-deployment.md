@@ -59,6 +59,7 @@ Retain existing credentials. The complete production secret names are:
 | `ONSHAPE_WEBHOOK_SECRET` | Optional random shared secret for Onshape callbacks; enable together with `ONSHAPE_WEBHOOK_BASE_URL` |
 | `ONSHAPE_ACCESS_KEY`, `ONSHAPE_SECRET_KEY` | Optional hawk-shop Onshape API key; without it CAD features return 409 |
 | `HAWK_SHOP_SLACK_BOT_TOKEN` | Optional bot token for hawk-shop's own Slack app (notifications and problem reports); see hawk-shop `docs/slack-setup.md` |
+| `HAWK_SHOP_SLACK_SIGNING_SECRET` | Optional signing secret from the same hawk-shop Slack app; turns release-message links into buttons. Never hawk-mod's or hawk-bot's |
 | `SLACK_SIGNING_SECRET`, `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`, `SLACK_STATE_SECRET` | hawk-mod's Slack application |
 | `TOKEN_ENCRYPTION_KEY` | Existing hawk-mod encryption key; do not regenerate |
 | `ALERT_CHANNEL_ID` | hawk-mod findings channel ID |
