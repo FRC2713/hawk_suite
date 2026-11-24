@@ -15,7 +15,7 @@ parser.add_argument('--manifests', type=Path, help='write domain-specific Slack 
 args = parser.parse_args()
 release = validate(json.loads(Path(args.release).read_text()))
 failed = False
-for host, path in [('apps', '/'), ('shop', '/api/health'), ('mod', '/health'), ('bot', '/health'), ('scout', '/health')]:
+for host, path in [('apps', '/'), ('shop', '/api/health'), ('mod', '/health'), ('bot', '/health'), ('scout', '/health'), ('learn', '/health')]:
     name = host + '.' + args.domain
     try:
         socket.getaddrinfo(name, 443)

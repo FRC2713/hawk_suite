@@ -57,6 +57,10 @@
         <h2>Hawk Eye</h2>
         <p>Event schedules, team data, and scouting documentation.</p>
       </a>
+      <a class="app" id="learn" href="#">
+        <h2>Hawk Learn</h2>
+        <p>Interactive Java and robotics software training curriculum.</p>
+      </a>
     </div>
     <footer>
       Built by <a href="https://github.com/FRC2713">FRC 2713 Red Hawk Robotics</a>
@@ -64,13 +68,14 @@
   </main>
   <script>
     // The portal is served at apps.<domain>; the apps are siblings at
-    // shop./mod./bot./scout.<domain>, so drop this page's own "apps." label first.
+    // shop./mod./bot./scout./learn.<domain>, so drop this page's own "apps." label first.
     const host = window.location.host.replace(/^apps\./, '');
     const proto = window.location.protocol;
     document.getElementById('shop').href = `${proto}//shop.${host}`;
     document.getElementById('mod').href = `${proto}//mod.${host}`;
     document.getElementById('bot').href = `${proto}//bot.${host}`;
     document.getElementById('scout').href = `${proto}//scout.${host}/`;
+    document.getElementById('learn').href = `${proto}//learn.${host}/`;
   </script>
 </body>
 </html>

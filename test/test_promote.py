@@ -44,8 +44,18 @@ class PromoteTests(unittest.TestCase):
         self.assertEqual(self.run_promote('hawk-eye'), 0)
         after = json.loads(self.release.read_text())
         self.assertEqual(after['apps']['hawk-eye'], dict(revision=NEW_SHA, digest=NEW_DIGEST, contract=1))
-        for app in ('hawk-shop', 'hawk-mod', 'hawk-bot'):
+        for app in ('hawk-shop', 'hawk-mod', 'hawk-bot', 'hawk-learn'):
             self.assertEqual(after['apps'][app], before['apps'][app])
+
+    def test_hawk_learn_resolves_against_software_training_repo(self):
+        seen = []
+        def tracking_gh(*args):
+            seen.append(next(a for a in args if not a.startswith('-') and '/' in a))
+            return fake_gh()(*args)
+        with patch.object(promote, 'gh', tracking_gh):
+            self.assertEqual(promote.main(['hawk-learn', '--release', str(self.release)]), 0)
+        self.assertIn('repos/FRC2713/software_training/commits/main', seen)
+        self.assertIn('orgs/FRC2713/packages/container/hawk-learn/versions?per_page=100', seen)
 
     def test_refuses_commits_not_on_main(self):
         before = self.release.read_text()

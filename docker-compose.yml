@@ -16,7 +16,7 @@ services:
       # hawk-deploy reloads the config explicitly, but only from the version
       # installed on the host; bump this when changing the Caddyfile to force a
       # recreate regardless of which hawk-deploy the host is running.
-      CADDY_CONFIG_REV: "9"
+      CADDY_CONFIG_REV: "10"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./portal:/srv/portal:ro
@@ -24,12 +24,13 @@ services:
       - caddy_config:/config
     # Start order only, deliberately not `condition: service_healthy`: an app
     # missing a credential should not keep the proxy (and the other app) down.
-    networks: [shop, mod, bot, eye]
+    networks: [shop, mod, bot, eye, learn]
     depends_on:
       - hawk-shop
       - hawk-mod
       - hawk-bot
       - hawk-eye
+      - hawk-learn
 
   hawk-shop:
     networks: [shop]
@@ -186,6 +187,16 @@ services:
       - hawk_eye_data:/data
     # The image carries its own HEALTHCHECK against /health.
 
+  hawk-learn:
+    networks: [learn]
+    image: ${HAWK_LEARN_IMAGE:-ghcr.io/frc2713/hawk-learn:${HAWK_LEARN_TAG:-latest}}
+    restart: unless-stopped
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3000
+      APP_URL: ${HAWK_LEARN_APP_URL:-https://learn.${DOMAIN}}
+    # Stateless static site; the image carries its own HEALTHCHECK against /health.
+
 volumes:
   caddy_data:
   caddy_config:
@@ -200,3 +211,4 @@ networks:
   mod: {}
   bot: {}
   eye: {}
+  learn: {}

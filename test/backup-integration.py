@@ -14,7 +14,7 @@ import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 from deploy import backup
-from release import APPS, image, validate
+from release import STATEFUL_APPS, image, validate
 
 root = Path(__file__).resolve().parents[1]
 release = validate(json.loads((root / 'releases/production.json').read_text()))
@@ -29,7 +29,7 @@ fixture = dict(SLACK_SIGNING_SECRET='fixture', SLACK_CLIENT_ID='fixture', SLACK_
                # Shop from its Astro release on reads Suite identity and an optional API key.
                HAWK_SUITE_TRUST_PROXY='true', HAWK_SUITE_TEAM_ID='TFIXTURE', HAWK_SUITE_ISSUER='https://fixture.example.org/')
 try:
-    for app in APPS:
+    for app in STATEFUL_APPS:
         ref = os.environ.get(app.upper().replace('-', '_') + '_TEST_IMAGE') or image(app, release['apps'][app])
         if not os.environ.get(app.upper().replace('-', '_') + '_TEST_IMAGE'):
             subprocess.run(['docker', 'pull', '--platform', 'linux/amd64', ref], check=True, stdout=subprocess.DEVNULL)
@@ -56,7 +56,7 @@ try:
         restore = [sys.executable, str(root / 'scripts/restore-backup.py'), archive, str(state / 'recovered')]
         subprocess.run(restore, check=True, env=dict(os.environ, BACKUP_ENCRYPTION_KEY=key))
         import sqlite3
-        for app in APPS:
+        for app in STATEFUL_APPS:
             conn = sqlite3.connect(state / 'recovered' / (app + '.db'))
             assert conn.execute('PRAGMA integrity_check').fetchone()[0] == 'ok'
             conn.close()

@@ -12,7 +12,7 @@ import sys
 import tarfile
 import tempfile
 from datetime import datetime, timezone
-from release import APPS, image, validate, auth_image
+from release import APPS, STATEFUL_APPS, image, validate, auth_image
 from auth_config import prepare as prepare_auth
 from backup_auth import backup_tag
 
@@ -100,7 +100,7 @@ def backup(state, backup_id, key, project="hawk-suite"):
     with tempfile.TemporaryDirectory(dir=state) as scratch:
         scratch = Path(scratch)
         found = []
-        for app in APPS:
+        for app in STATEFUL_APPS:
             ids = output(['docker', 'ps', '--all', '--filter', 'label=com.docker.compose.project=' + project,
                           '--filter', 'label=com.docker.compose.service=' + app, '--format', '{{.ID}}']).splitlines()
             if not ids:

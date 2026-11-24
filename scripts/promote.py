@@ -20,7 +20,7 @@ import re
 import subprocess
 import sys
 
-from release import APPS, DIGEST, SHA, validate
+from release import APPS, DIGEST, SHA, repo_name, validate
 
 ORG = 'FRC2713'
 RELEASE = Path(__file__).resolve().parents[1] / 'releases' / 'production.json'
@@ -52,7 +52,7 @@ def parse_target(text):
 
 def resolve_revision(app, ref):
     """Return the full SHA for ref, refusing commits that are not on main."""
-    repo = f'{ORG}/{app}'
+    repo = f'{ORG}/{repo_name(app)}'
     sha = gh(f'repos/{repo}/commits/{ref}', '--jq', '.sha').strip()
     if not SHA.fullmatch(sha):
         raise PromoteError(f'{app}: could not resolve {ref}')
@@ -69,7 +69,7 @@ def find_digest(app, revision):
     digests = out.split()
     if not digests:
         raise PromoteError(f'{app}: no published image {tag}. Has its publish workflow finished?\n'
-                           f'    gh run list -R {ORG}/{app} --commit {revision}')
+                           f'    gh run list -R {ORG}/{repo_name(app)} --commit {revision}')
     if len(digests) != 1 or not DIGEST.fullmatch(digests[0]):
         raise PromoteError(f'{app}: ambiguous digest for {tag}')
     return digests[0]
@@ -109,7 +109,7 @@ def main(argv=None):
             validate(release)
             args.release.write_text(json.dumps(release, indent=2) + '\n')
             for app, old, new in changes:
-                print(f'  https://github.com/{ORG}/{app}/compare/{old}...{new}')
+                print(f'  https://github.com/{ORG}/{repo_name(app)}/compare/{old}...{new}')
         return 0
     except PromoteError as error:
         print(f'promote: {error}', file=sys.stderr)

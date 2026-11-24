@@ -52,8 +52,9 @@ class ReleaseTests(unittest.TestCase):
 
     def test_release_references_are_allowlisted(self):
         text = render(release())
-        self.assertEqual(len(text.splitlines()), 4)
+        self.assertEqual(len(text.splitlines()), len(APPS))
         self.assertIn('HAWK_BOT_IMAGE=ghcr.io/frc2713/hawk-bot@sha256:', text)
+        self.assertIn('HAWK_LEARN_IMAGE=ghcr.io/frc2713/hawk-learn@sha256:', text)
         with self.assertRaises(ValueError):
             image('arbitrary-image', {})
 
@@ -227,7 +228,7 @@ class ComposeCredentialTests(unittest.TestCase):
             overlay = json.loads(subprocess.check_output(command+['-f',str(ROOT/'config/authentication/compose.yaml'),
                                                                  'config','--format','json']))
         # Every app consumes the isolated gateway's identity headers.
-        self.assertEqual(set(APPS), {'hawk-shop', 'hawk-eye', 'hawk-mod', 'hawk-bot'})
+        self.assertEqual(set(APPS), {'hawk-shop', 'hawk-eye', 'hawk-mod', 'hawk-bot', 'hawk-learn'})
         for app in APPS:
             self.assertNotIn('HAWK_SUITE_TRUST_PROXY', base['services'][app]['environment'], msg=app)
         for app in APPS:
