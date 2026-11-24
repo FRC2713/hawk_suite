@@ -1,7 +1,9 @@
 import json
 import sys
 
-services = json.load(open(sys.argv[1]))['services']
+resolved = json.load(open(sys.argv[1]))
+services = resolved['services']
+networks = resolved['networks']
 mod = services['hawk-mod']['environment']
 bot = services['hawk-bot']['environment']
 assert mod['SLACK_SIGNING_SECRET'] == 'mod-secret'
@@ -32,10 +34,23 @@ for app in ('hawk-shop', 'hawk-mod', 'hawk-bot', 'hawk-eye', 'hawk-learn'):
 
 learn = services['hawk-learn']
 assert learn['environment'] == {
-    'APP_URL': 'https://learn.ci.example.org', 'HOST': '0.0.0.0', 'PORT': '3000',
+    'APP_URL': 'https://learn.ci.example.org',
+    'HOST': '0.0.0.0',
+    'PORT': '3000',
+    'RUNNER_URL': 'http://hawk-learn-runner:4000',
 }
 assert 'ports' not in learn
 assert not learn.get('volumes')
+
+runner = services['hawk-learn-runner']
+assert set(runner['networks']) == {'learn_runner'}
+assert 'ports' not in runner
+assert not runner.get('volumes')
+assert runner.get('read_only') is True
+assert 'ALL' in runner.get('cap_drop', [])
+assert 'no-new-privileges:true' in runner.get('security_opt', [])
+assert runner.get('pids_limit') == 64
+assert networks['learn_runner'].get('internal') is True
 
 eye = services['hawk-eye']
 assert eye['environment'] == {
@@ -52,8 +67,11 @@ for service, config in services.items():
         assert not {"TBA_API_KEY", "MATCH13_API_KEY", "MATCH13_ACCOUNT"}.intersection(config.get("environment", {}))
 
 # Each application can reach Caddy, but no sibling application shares its bridge.
-for app in ('shop', 'mod', 'bot', 'eye', 'learn'):
+# hawk-learn also joins the internal-only learn_runner bridge to reach its sandbox.
+for app in ('shop', 'mod', 'bot', 'eye'):
     service = services['hawk-' + app]
     assert set(service['networks']) == {app}
     assert not service.get('ports')
+assert set(services['hawk-learn']['networks']) == {'learn', 'learn_runner'}
+assert not services['hawk-learn'].get('ports')
 assert set(services['caddy']['networks']) == {'shop', 'mod', 'bot', 'eye', 'learn'}

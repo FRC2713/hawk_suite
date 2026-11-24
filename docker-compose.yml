@@ -188,14 +188,33 @@ services:
     # The image carries its own HEALTHCHECK against /health.
 
   hawk-learn:
-    networks: [learn]
+    networks: [learn, learn_runner]
     image: ${HAWK_LEARN_IMAGE:-ghcr.io/frc2713/hawk-learn:${HAWK_LEARN_TAG:-latest}}
     restart: unless-stopped
     environment:
       HOST: 0.0.0.0
       PORT: 3000
       APP_URL: ${HAWK_LEARN_APP_URL:-https://learn.${DOMAIN}}
-    # Stateless static site; the image carries its own HEALTHCHECK against /health.
+      RUNNER_URL: http://hawk-learn-runner:4000
+    depends_on:
+      - hawk-learn-runner
+    # Stateless web/API container; the image carries its own HEALTHCHECK against /health.
+
+  hawk-learn-runner:
+    networks: [learn_runner]
+    image: ${HAWK_LEARN_RUNNER_IMAGE:-ghcr.io/frc2713/hawk-learn-runner:${HAWK_LEARN_RUNNER_TAG:-latest}}
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 64
+    mem_limit: 256m
+    cpus: 1.0
+    # Isolated Python execution sandbox on an internal-only network; no internet or sibling access.
 
 volumes:
   caddy_data:
@@ -206,9 +225,12 @@ volumes:
   hawk_eye_data:
 
 # Each backend shares a network only with Caddy; outbound API access remains enabled.
+# learn_runner is internal-only so student code has no internet or sibling-app route.
 networks:
   shop: {}
   mod: {}
   bot: {}
   eye: {}
   learn: {}
+  learn_runner:
+    internal: true
