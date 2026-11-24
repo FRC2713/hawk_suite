@@ -7,6 +7,7 @@ from pathlib import Path
 
 APPS = ('hawk-shop', 'hawk-mod', 'hawk-bot', 'hawk-eye', 'hawk-learn')
 STATEFUL_APPS = ('hawk-shop', 'hawk-mod', 'hawk-bot', 'hawk-eye')
+SIDECARS = {'hawk-learn-runner': 'hawk-learn'}
 REPOS = {'hawk-learn': 'software_training'}
 SHA = re.compile(r'[0-9a-f]{40}\Z')
 DIGEST = re.compile(r'sha256:[0-9a-f]{64}\Z')
@@ -28,6 +29,15 @@ def validate(data):
             raise ValueError(f'{app}: invalid image digest')
         if item.get('contract') not in (0, 1):
             raise ValueError(f'{app}: unsupported image contract')
+    if 'sidecars' in data:
+        sidecars = data['sidecars']
+        if not isinstance(sidecars, dict) or not set(sidecars).issubset(SIDECARS):
+            raise ValueError('unknown sidecar in release')
+        for name, item in sidecars.items():
+            if not isinstance(item, dict) or set(item) != {'digest', 'revision'}:
+                raise ValueError(f'{name}: sidecar requires digest and revision')
+            if not DIGEST.fullmatch(item.get('digest', '')) or not SHA.fullmatch(item.get('revision', '')):
+                raise ValueError(f'{name}: invalid sidecar image identity')
     if 'authentication' in data:
         auth = data['authentication']
         if not isinstance(auth, dict) or set(auth) != {'digest', 'revision'}:
@@ -43,13 +53,24 @@ def image(app, item):
     return f'ghcr.io/frc2713/{app}@{item["digest"]}'
 
 
+def sidecar_image(name, item):
+    if name not in SIDECARS:
+        raise ValueError('unknown sidecar')
+    return f'ghcr.io/frc2713/{name}@{item["digest"]}'
+
+
 def auth_image(data):
     return 'ghcr.io/frc2713/hawk-auth@' + data['authentication']['digest']
 
 
 def render(data):
     validate(data)
-    return '\n'.join(f'{app.upper().replace("-", "_")}_IMAGE={image(app, data["apps"][app])}' for app in APPS) + '\n' + (('HAWK_AUTH_IMAGE=' + auth_image(data) + '\n') if 'authentication' in data else '')
+    lines = [f'{app.upper().replace("-", "_")}_IMAGE={image(app, data["apps"][app])}' for app in APPS]
+    for name, item in data.get('sidecars', {}).items():
+        lines.append(f'{name.upper().replace("-", "_")}_IMAGE={sidecar_image(name, item)}')
+    if 'authentication' in data:
+        lines.append('HAWK_AUTH_IMAGE=' + auth_image(data))
+    return '\n'.join(lines) + '\n'
 
 
 if __name__ == '__main__':

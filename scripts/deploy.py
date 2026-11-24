@@ -12,7 +12,7 @@ import sys
 import tarfile
 import tempfile
 from datetime import datetime, timezone
-from release import APPS, STATEFUL_APPS, image, validate, auth_image
+from release import APPS, STATEFUL_APPS, image, sidecar_image, validate, auth_image
 from auth_config import prepare as prepare_auth
 from backup_auth import backup_tag
 
@@ -80,13 +80,19 @@ def check_containers(compose, release, authenticated):
     # Compose versions emit either a JSON array or one JSON object per line.
     rows = json.loads(raw) if raw.startswith('[') else [json.loads(line) for line in raw.splitlines() if line]
     actual = {row['Service']: row for row in rows}
-    if set(actual) != {'caddy', *APPS}:
+    sidecars = release.get('sidecars', {})
+    if set(actual) != {'caddy', *APPS, *sidecars}:
         raise ValueError('missing or unexpected containers')
     for app, row in actual.items():
         if row['State'] != 'running' or (app != 'caddy' and row.get('Health') != 'healthy'):
             raise ValueError('container not ready: ' + app)
-        if app in APPS or authenticated:
-            ref = auth_image(release) if app == 'caddy' else image(app, release['apps'][app])
+        if app in APPS or app in sidecars or authenticated:
+            if app == 'caddy':
+                ref = auth_image(release)
+            elif app in sidecars:
+                ref = sidecar_image(app, sidecars[app])
+            else:
+                ref = image(app, release['apps'][app])
             expected = output(['docker', 'image', 'inspect', '--format', '{{.Id}}', ref])
             running = output(['docker', 'inspect', '--format', '{{.Image}}', row['ID']])
             if running != expected:
@@ -178,6 +184,8 @@ def main(stack, target, request):
     resolved = dict(values)
     for app in APPS:
         resolved[app.upper().replace('-', '_') + '_IMAGE'] = image(app, release['apps'][app])
+    for name, item in release.get('sidecars', {}).items():
+        resolved[name.upper().replace('-', '_') + '_IMAGE'] = sidecar_image(name, item)
     compose = ['docker', 'compose', '--project-name', 'hawk-suite', '--project-directory', str(target),
                '--env-file', str(envfile), '-f', str(target / 'docker-compose.yml')]
     applied = False
@@ -211,6 +219,11 @@ def main(stack, target, request):
             run(['docker', 'run', '--rm', '--network', 'none', '--env-file', str(raw_env), '--entrypoint', 'node', ref,
                  'scripts/deploy-check.mjs'])
             raw_env.unlink()
+        for name, item in release.get('sidecars', {}).items():
+            ref = sidecar_image(name, item)
+            revision = output(['docker', 'image', 'inspect', '--format', '{{index .Config.Labels "org.opencontainers.image.revision"}}', ref])
+            if revision != item['revision']:
+                raise ValueError('source revision mismatch: ' + name)
         # Capture auth parser output: upstream diagnostics may contain credentials.
         if authenticated:
             revision = output(['docker', 'image', 'inspect', '--format', '{{index .Config.Labels "io.hawk.suite-source-revision"}}', auth_image(release)])

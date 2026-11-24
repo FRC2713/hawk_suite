@@ -56,6 +56,12 @@ class PromoteTests(unittest.TestCase):
             self.assertEqual(promote.main(['hawk-learn', '--release', str(self.release)]), 0)
         self.assertIn('repos/FRC2713/software_training/commits/main', seen)
         self.assertIn('orgs/FRC2713/packages/container/hawk-learn/versions?per_page=100', seen)
+        self.assertIn('orgs/FRC2713/packages/container/hawk-learn-runner/versions?per_page=100', seen)
+        after = json.loads(self.release.read_text())
+        self.assertEqual(
+            after['sidecars']['hawk-learn-runner'],
+            dict(revision=NEW_SHA, digest=NEW_DIGEST),
+        )
 
     def test_refuses_commits_not_on_main(self):
         before = self.release.read_text()

@@ -30,6 +30,31 @@ def release():
 
 
 class ReleaseTests(unittest.TestCase):
+    def test_sidecar_digest_and_source_are_validated(self):
+        data = release()
+        data['sidecars'] = {'hawk-learn-runner': dict(digest='sha256:' + 'c' * 64, revision='d' * 40)}
+        self.assertIn('HAWK_LEARN_RUNNER_IMAGE=ghcr.io/frc2713/hawk-learn-runner@sha256:', render(data))
+        for field in ('digest', 'revision'):
+            bad = copy.deepcopy(data)
+            bad['sidecars']['hawk-learn-runner'][field] = 'latest'
+            with self.assertRaises(ValueError):
+                validate(bad)
+        bad_name = copy.deepcopy(data)
+        bad_name['sidecars']['unknown-sidecar'] = dict(digest='sha256:' + 'c' * 64, revision='d' * 40)
+        with self.assertRaises(ValueError):
+            validate(bad_name)
+
+    def test_sidecar_health_and_image_are_checked(self):
+        data = release()
+        data['sidecars'] = {'hawk-learn-runner': dict(digest='sha256:' + 'c' * 64, revision='d' * 40)}
+        rows = [{'Service': svc, 'State': 'running', 'Health': 'healthy', 'ID': svc}
+                for svc in ['caddy', *APPS, 'hawk-learn-runner']]
+        with patch.object(deploy, 'output', side_effect=[json.dumps(rows)] + ['expected', 'expected'] * (len(APPS) + 1)):
+            deploy.check_containers(['compose'], data, authenticated=False)
+        with patch.object(deploy, 'output', return_value=json.dumps(rows[:-1])):
+            with self.assertRaisesRegex(ValueError, 'missing or unexpected containers'):
+                deploy.check_containers(['compose'], data, authenticated=False)
+
     def test_authentication_digest_and_source_are_validated(self):
         data = release()
         data['authentication'] = dict(digest='sha256:' + 'a' * 64, revision='b' * 40)

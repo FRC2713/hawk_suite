@@ -20,7 +20,7 @@ import re
 import subprocess
 import sys
 
-from release import APPS, DIGEST, SHA, repo_name, validate
+from release import APPS, DIGEST, SHA, SIDECARS, repo_name, validate
 
 ORG = 'FRC2713'
 RELEASE = Path(__file__).resolve().parents[1] / 'releases' / 'production.json'
@@ -100,11 +100,24 @@ def main(argv=None):
             revision = resolve_revision(app, ref)
             digest = find_digest(app, revision)
             previous = apply(release, app, revision, digest)
-            if previous is None:
+            sidecar_changed = False
+            for sidecar, parent in SIDECARS.items():
+                if parent != app:
+                    continue
+                sidecar_digest = find_digest(sidecar, revision)
+                sidecars = release.setdefault('sidecars', {})
+                new_sidecar = dict(revision=revision, digest=sidecar_digest)
+                if sidecars.get(sidecar) != new_sidecar:
+                    sidecars[sidecar] = new_sidecar
+                    sidecar_changed = True
+                    print(f'{sidecar}: -> {revision[:12]}  {sidecar_digest[:19]}')
+            if previous is None and not sidecar_changed:
                 print(f'{app}: already at {revision[:12]}')
-            else:
+            elif previous is not None:
                 changes.append((app, previous['revision'], revision))
                 print(f'{app}: {previous["revision"][:12]} -> {revision[:12]}  {digest[:19]}')
+            else:
+                changes.append((app, revision, revision))
         if changes:
             validate(release)
             args.release.write_text(json.dumps(release, indent=2) + '\n')
