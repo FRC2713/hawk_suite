@@ -47,7 +47,7 @@ def main():
         config = config.replace('admin localhost:2019', 'admin localhost:2019\n auto_https off')
         config = config.replace('metadata_url https://slack.com/.well-known/openid-configuration',
                                 'metadata_url http://provider:8080/.well-known/openid-configuration')
-        for host in ('apps','shop','mod','bot','scout'):
+        for host in ('apps','shop','mod','bot','scout','learn'):
             config = config.replace(host+'.suite.test {', 'http://'+host+'.suite.test:8080 {')
         (directory/'Caddyfile').write_text(config)
         (directory/'Caddyfile.maintenance').write_text((ROOT/'config/authentication/Caddyfile.maintenance').read_text().replace('__DOMAIN__','suite.test'))
@@ -69,7 +69,7 @@ HTTPServer(('0.0.0.0',3000), Handler).serve_forever()
         try:
             for suffix, args in [
                 ('provider', ['--network-alias','provider','hawk-auth-oidc-fixture:local']),
-                ('backend', sum((['--network-alias', app] for app in ('hawk-eye','hawk-shop','hawk-mod','hawk-bot')), []) +
+                ('backend', sum((['--network-alias', app] for app in ('hawk-eye','hawk-shop','hawk-mod','hawk-bot','hawk-learn')), []) +
                  ['-v',str(directory)+':/fixture:ro','python:3.14-alpine','python','/fixture/backend.py']),
                 ('gateway', ['-p','127.0.0.1::8080','-v',str(directory)+':/etc/hawk-auth:ro',
                  '-v',str(ROOT/'config/authentication/assets')+':/srv/auth-assets:ro',
@@ -112,7 +112,7 @@ HTTPServer(('0.0.0.0',3000), Handler).serve_forever()
             check(True,'maintenance configuration validates')
             valid = token()
             signed = {'Cookie':'AUTHP_ACCESS_TOKEN='+valid}
-            for host in ('mod','bot','scout','shop'):
+            for host in ('mod','bot','scout','shop','learn'):
                 for value in (None, 'invalid', token(exp=int(time.time())-120), token(aud='wrong'), token(roles=['admin'])):
                     status, location, body = request(host, headers={} if value is None else {'Cookie':'AUTHP_ACCESS_TOKEN='+value})
                     check(status in (302,303,307,401,403), host+' rejects missing/invalid claims')
@@ -148,7 +148,7 @@ HTTPServer(('0.0.0.0',3000), Handler).serve_forever()
                         'X-Hawk-Slack-Team': 'TAPPROVED', 'X-Hawk-Slack-User': 'UTEST',
                         'X-Token-User-Roles': 'suite/member'}
             forged = {key: 'forged' for key in [*identity, 'X-Token-User-Name', 'X-Token-User-Email']}
-            for host in ('mod', 'bot', 'scout', 'shop'):
+            for host in ('mod', 'bot', 'scout', 'shop', 'learn'):
                 check(request(host, headers=forged)[0] != 200, host+' rejects forged identity without session')
                 status, _, body = request(host, headers={**forged, 'Cookie': 'AUTHP_ACCESS_TOKEN='+valid})
                 received = {k.lower(): v for k, v in json.loads(body).items()}
@@ -163,7 +163,7 @@ HTTPServer(('0.0.0.0',3000), Handler).serve_forever()
             received = {k.lower(): v for k,v in json.loads(body).items()}
             check(status == 200 and received.get('x-hawk-slack-user') == 'UTEST'
                   and 'x-token-user-email' not in received, 'duplicate mixed-case headers cannot survive')
-            for host, path in [('shop','/api/health'), ('shop','/health'), ('scout','/health'), ('bot','/health'), ('mod','/slack/oauth_redirect')]:
+            for host, path in [('shop','/api/health'), ('shop','/health'), ('scout','/health'), ('bot','/health'), ('learn','/health'), ('mod','/slack/oauth_redirect')]:
                 status, _, body = request(host, path, headers=forged)
                 received = {k.lower(): v for k,v in json.loads(body).items()}
                 check(status == 200 and not any(k.lower() in received for k in forged), host+' clears identity on bypass')

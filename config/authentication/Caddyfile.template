@@ -28,6 +28,7 @@
 			trust login redirect uri domain exact scout.__DOMAIN__ path prefix /
 			trust login redirect uri domain exact mod.__DOMAIN__ path prefix /
 			trust login redirect uri domain exact bot.__DOMAIN__ path prefix /
+			trust login redirect uri domain exact learn.__DOMAIN__ path prefix /
 			crypto default token lifetime 604800
 			crypto key suite-production sign from file /etc/hawk-auth/private.pem
 			crypto key suite-production verify from file /etc/hawk-auth/public.pem
@@ -417,5 +418,27 @@ bot.__DOMAIN__ {
     route {
         import clear-suite-identity
         import slack-app hawk-bot:3000
+    }
+}
+(learn-proxy) {
+    reverse_proxy hawk-learn:3000 {
+        header_up -Authorization
+        header_up -X-Hawk-Identity
+    }
+}
+learn.__DOMAIN__ {
+    route {
+        import clear-suite-identity
+        @learnHealth {
+            method GET HEAD
+            path /health
+        }
+        route @learnHealth {
+            import learn-proxy
+        }
+        route {
+            authorize with suite
+            import learn-proxy
+        }
     }
 }

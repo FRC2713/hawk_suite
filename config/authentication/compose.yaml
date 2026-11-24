@@ -3,7 +3,7 @@ services:
   caddy:
     image: ${HAWK_AUTH_IMAGE:?Pin the tested authentication image in the release}
     environment:
-      CADDY_CONFIG_REV: auth-eye-report-import-v11
+      CADDY_CONFIG_REV: auth-learn-v12
     volumes:
       - ${HAWK_AUTH_CONFIG_DIR:?Private release configuration}:/etc/hawk-auth:ro
       - ${HAWK_AUTH_CONFIG_DIR}/Caddyfile:/etc/caddy/Caddyfile:ro
@@ -31,6 +31,11 @@ services:
       HAWK_SUITE_TRUST_PROXY: "true"
       HAWK_SUITE_TEAM_ID: ${HAWK_AUTH_SLACK_TEAM_ID:?Verified gateway workspace}
   hawk-shop:
+    environment:
+      HAWK_SUITE_ISSUER: https://apps.${DOMAIN}/
+      HAWK_SUITE_TRUST_PROXY: "true"
+      HAWK_SUITE_TEAM_ID: ${HAWK_AUTH_SLACK_TEAM_ID:?Verified gateway workspace}
+  hawk-learn:
     environment:
       HAWK_SUITE_ISSUER: https://apps.${DOMAIN}/
       HAWK_SUITE_TRUST_PROXY: "true"

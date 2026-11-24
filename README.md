@@ -18,6 +18,7 @@ that routes a subdomain to each, environment templates, and setup tooling.
 | `https://mod.<domain>` | **hawk-mod** — youth-protection DM monitoring for Slack |
 | `https://bot.<domain>` | **hawk-bot** — team assistant for Slack, `/hawkbot` |
 | `https://scout.<domain>` | **hawk-eye** events, provider match data, and design docs |
+| `https://learn.<domain>` | **hawk-learn** — interactive Java software training curriculum |
 
 Hawk Eye serves read-only events, team provider views, and docs at `scout.<domain>`.
 See [its deployment notes](docs/hawk-eye.md).

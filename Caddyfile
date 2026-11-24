@@ -37,6 +37,10 @@ bot.{$DOMAIN} {
 	reverse_proxy hawk-bot:3000
 }
 
+learn.{$DOMAIN} {
+	reverse_proxy hawk-learn:3000
+}
+
 # Hawk Eye exposes event/provider views, bounded TBA refresh, and design docs.
 # Keep scouting APIs and mutation routes blocked until authorization exists.
 scout.{$DOMAIN} {

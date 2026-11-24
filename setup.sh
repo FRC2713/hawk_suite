@@ -36,13 +36,14 @@ command -v openssl >/dev/null 2>&1 || {
 echo "hawk_suite setup"
 echo "================"
 echo
-echo "The suite serves five hostnames off one domain (the bare domain is"
+echo "The suite serves six hostnames off one domain (the bare domain is"
 echo "left alone — it can keep pointing at the team website):"
 echo "  https://apps.<domain>  portal"
 echo "  https://shop.<domain>  hawk-shop"
 echo "  https://mod.<domain>   hawk-mod"
 echo "  https://bot.<domain>   hawk-bot"
 echo "  https://scout.<domain> hawk-eye"
+echo "  https://learn.<domain> hawk-learn"
 echo
 echo "hawk-mod and hawk-bot only work on a real, publicly resolvable domain —"
 echo "Slack posts to them from Slack's servers over HTTPS."
@@ -116,6 +117,8 @@ HAWK_SHOP_TAG=latest
 HAWK_MOD_TAG=latest
 HAWK_BOT_TAG=latest
 HAWK_EYE_TAG=sha-535855c59b2d1f290c899ba1c834bdcc3d6db86e
+HAWK_LEARN_TAG=latest
+HAWK_LEARN_APP_URL=https://learn.${DOMAIN}
 HAWK_EYE_APP_URL=https://scout.${DOMAIN}
 HAWK_EYE_TBA_API_KEY=${HAWK_EYE_TBA_API_KEY}
 HAWK_EYE_MATCH13_API_KEY=${HAWK_EYE_MATCH13_API_KEY}
@@ -208,6 +211,7 @@ echo "  hawk-shop: https://shop.${DOMAIN}"
 echo "  hawk-mod:  https://mod.${DOMAIN}/health"
 echo "  hawk-bot:  https://bot.${DOMAIN}/health"
 echo "  hawk-eye:  https://scout.${DOMAIN}"
+echo "  hawk-learn: https://learn.${DOMAIN}"
 echo
 echo "Next: a Lead Coach opens https://mod.${DOMAIN}/slack/install to install"
 echo "hawk-mod's Slack app, then every adult opens the same URL to authorize."

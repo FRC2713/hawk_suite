@@ -27,8 +27,15 @@ assert len({
     mod['SLACK_SIGNING_SECRET'],
     bot['SLACK_SIGNING_SECRET'],
 }) == 3
-for app in ('hawk-shop', 'hawk-mod', 'hawk-bot', 'hawk-eye'):
+for app in ('hawk-shop', 'hawk-mod', 'hawk-bot', 'hawk-eye', 'hawk-learn'):
     assert '@sha256:' in services[app]['image']
+
+learn = services['hawk-learn']
+assert learn['environment'] == {
+    'APP_URL': 'https://learn.ci.example.org', 'HOST': '0.0.0.0', 'PORT': '3000',
+}
+assert 'ports' not in learn
+assert not learn.get('volumes')
 
 eye = services['hawk-eye']
 assert eye['environment'] == {
@@ -45,8 +52,8 @@ for service, config in services.items():
         assert not {"TBA_API_KEY", "MATCH13_API_KEY", "MATCH13_ACCOUNT"}.intersection(config.get("environment", {}))
 
 # Each application can reach Caddy, but no sibling application shares its bridge.
-for app in ('shop', 'mod', 'bot', 'eye'):
+for app in ('shop', 'mod', 'bot', 'eye', 'learn'):
     service = services['hawk-' + app]
     assert set(service['networks']) == {app}
     assert not service.get('ports')
-assert set(services['caddy']['networks']) == {'shop', 'mod', 'bot', 'eye'}
+assert set(services['caddy']['networks']) == {'shop', 'mod', 'bot', 'eye', 'learn'}

@@ -1,6 +1,6 @@
 ---
 name: ship
-description: Ship one or more hawk apps (hawk-shop, hawk-mod, hawk-bot, hawk-eye) to production — wait for the published image, promote its digest in releases/production.json, open and merge the release PR, then follow the Deploy run. Use when the user says "ship", "deploy", "release" or "promote" an app or commit.
+description: Ship one or more hawk apps (hawk-shop, hawk-mod, hawk-bot, hawk-eye, hawk-learn) to production — wait for the published image, promote its digest in releases/production.json, open and merge the release PR, then follow the Deploy run. Use when the user says "ship", "deploy", "release" or "promote" an app or commit.
 ---
 
 # Ship an app release
@@ -13,7 +13,7 @@ current `main`. Repo: `FRC2713/hawk_suite`. Apps live in `FRC2713/<app>`.
 The image tag `sha-<commit>` exists only after the app's publish workflow
 passed its smoke tests.
 
-- hawk-shop, hawk-mod, hawk-bot publish on every push to main (workflow
+- hawk-shop, hawk-mod, hawk-bot, hawk-learn (`FRC2713/software_training`) publish on every push to main (workflow
   `docker.yml`). Find the run with
   `gh run list -R FRC2713/<app> -w docker.yml --commit <sha> -L 1` and
   `gh run watch <id> -R FRC2713/<app> --exit-status` if it is still going.

@@ -17,6 +17,7 @@ The apps live in their own repos and publish container images to GHCR:
 | hawk-mod | `FRC2713/hawk-mod` | `ghcr.io/frc2713/hawk-mod` | Youth-protection DM monitoring for Slack |
 | hawk-bot | `FRC2713/hawk-bot` | `ghcr.io/frc2713/hawk-bot` | Team assistant for Slack (`/hawkbot`) |
 | hawk-eye | `FRC2713/hawk-eye` | `ghcr.io/frc2713/hawk-eye` | Scouting construction page and design docs |
+| hawk-learn | `FRC2713/software_training` | `ghcr.io/frc2713/hawk-learn` | Interactive Java software training curriculum |
 
 Implication: bugs in an app's *behavior* belong in that app's repo, not here.
 This repo owns routing, wiring, env plumbing, and the deploy/update experience.
@@ -71,7 +72,7 @@ One Docker host runs everything (`docker-compose.yml`):
   tokens at all, which is what keeps it uncontroversial next to hawk-mod.
 
 Routing lives in `Caddyfile`: `apps.` → portal, `shop.` → hawk-shop:3000, `mod.` →
-hawk-mod:3000, `bot.` → hawk-bot:3000, `scout.` → hawk-eye:3000. `$DOMAIN` is interpolated at container
+hawk-mod:3000, `bot.` → hawk-bot:3000, `scout.` → hawk-eye:3000, `learn.` → hawk-learn:3000. `$DOMAIN` is interpolated at container
 start. Editing the Caddyfile also means bumping `CADDY_CONFIG_REV` in
 `docker-compose.yml` — the comment there says why.
 

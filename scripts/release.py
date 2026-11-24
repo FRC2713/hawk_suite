@@ -5,14 +5,22 @@ import json
 import re
 from pathlib import Path
 
-APPS = ('hawk-shop', 'hawk-mod', 'hawk-bot', 'hawk-eye')
+APPS = ('hawk-shop', 'hawk-mod', 'hawk-bot', 'hawk-eye', 'hawk-learn')
+STATEFUL_APPS = ('hawk-shop', 'hawk-mod', 'hawk-bot', 'hawk-eye')
+REPOS = {'hawk-learn': 'software_training'}
 SHA = re.compile(r'[0-9a-f]{40}\Z')
 DIGEST = re.compile(r'sha256:[0-9a-f]{64}\Z')
 
 
+def repo_name(app):
+    if app not in APPS:
+        raise ValueError('unknown application')
+    return REPOS.get(app, app)
+
+
 def validate(data):
     if data.get('schema') != 1 or set(data.get('apps', {})) != set(APPS):
-        raise ValueError('release must contain schema 1 and exactly the four suite apps')
+        raise ValueError('release must contain schema 1 and exactly the suite apps')
     for app, item in data['apps'].items():
         if not SHA.fullmatch(item.get('revision', '')):
             raise ValueError(f'{app}: invalid source revision')
@@ -55,5 +63,5 @@ if __name__ == '__main__':
     if args.require_authentication and 'authentication' not in data:
         parser.error('publish and pin the authentication candidate before deployment')
     if args.require_ready and any(item['contract'] != 1 for item in data['apps'].values()):
-        parser.error('promote contract-v1 images for all four apps before requesting production approval')
+        parser.error('promote contract-v1 images for all suite apps before requesting production approval')
     print(render(data) if args.env else json.dumps(data, indent=2), end='\n' if not args.env else '')

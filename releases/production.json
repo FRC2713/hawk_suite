@@ -20,6 +20,11 @@
       "revision": "4e14b2f2063d2ebd9bef688cb3a138aea7647a37",
       "digest": "sha256:77d3e47255ea81b61fa7ab092c4071d8c4289d8490227ade932fdf7751f1eec1",
       "contract": 1
+    },
+    "hawk-learn": {
+      "revision": "59704be8048658a651cd5f6f3d1c01f87d05c133",
+      "digest": "sha256:c83f0f72bab2cdd58ed30ed5f56f3304aed18596978b30d23716a18436c17fa2",
+      "contract": 1
     }
   },
   "authentication": {
