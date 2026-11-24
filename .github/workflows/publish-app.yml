@@ -1,7 +1,8 @@
 name: Publish app image
 
-# Shared by hawk-shop, hawk-mod, hawk-bot and hawk-eye. Each app calls it
-# twice so the slow part can overlap its own CI:
+# Shared by hawk-shop, hawk-mod, hawk-bot, hawk-eye and hawk-learn
+# (FRC2713/software_training). Each app calls it twice so the slow part can
+# overlap its own CI:
 #
 #   verify:  uses: ./.github/workflows/ci.yml
 #   build:   stage: build                  (runs alongside verify)
@@ -52,7 +53,11 @@ jobs:
           REPOSITORY: ${{ github.repository }}
         run: |
           [[ $APP =~ ^hawk-[a-z]+$ ]] || { echo "Unexpected app name: $APP" >&2; exit 1; }
-          [[ ${REPOSITORY,,} == "frc2713/$APP" ]] || { echo "$APP called from $REPOSITORY" >&2; exit 1; }
+          expected_repo="$APP"
+          if [[ $APP == "hawk-learn" ]]; then
+            expected_repo="software_training"
+          fi
+          [[ ${REPOSITORY,,} == "frc2713/$expected_repo" ]] || { echo "$APP called from $REPOSITORY" >&2; exit 1; }
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
       # The upgrade smoke test pulls the production image, which may be private.
