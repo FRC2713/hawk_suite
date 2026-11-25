@@ -22,8 +22,8 @@
       "contract": 1
     },
     "hawk-learn": {
-      "revision": "570e926822b5def2e24600218ba9eccaf663c852",
-      "digest": "sha256:7a2c5edc4d10af69dc1f7c3b721886a7169a5ebbfdb5306372e038689dd86d13",
+      "revision": "ca80ed596d2c1abbe72ef36becddfeb2c6121e6a",
+      "digest": "sha256:f1d1eca1de0943e1177f0b41c86a4dc39f2d21260fd75e502ac10600e018cdd8",
       "contract": 1
     }
   },
@@ -33,8 +33,8 @@
   },
   "sidecars": {
     "hawk-learn-runner": {
-      "revision": "570e926822b5def2e24600218ba9eccaf663c852",
-      "digest": "sha256:4b91c273f47026121f58280f1461a21a5a90b5ea8ad04afcd481b7811045bdcb"
+      "revision": "ca80ed596d2c1abbe72ef36becddfeb2c6121e6a",
+      "digest": "sha256:d24e151c60435b0d6d3b9910487853d93207cdaa87adc5c319680a509d733255"
     }
   }
 }
